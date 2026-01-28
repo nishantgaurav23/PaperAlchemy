@@ -1,0 +1,350 @@
+services:                                                                                           
+  # ===========================================                                                     
+  # API Service                                                                                     
+  # ===========================================                                                     
+  api:                                                                                              
+    build: .                                                                                        
+    container_name: paperalchemy-api                                                                
+    ports:                                                                                          
+      - "8000:8000"                                                                                 
+    depends_on:                                                                                     
+      postgres:                                                                                     
+        condition: service_healthy                                                                  
+      opensearch:                                                                                   
+        condition: service_healthy                                                                  
+      redis:                                                                                        
+        condition: service_healthy                                                                  
+    healthcheck:                                                                                    
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health')\""]                                          
+      interval: 30s                                                                                 
+      timeout: 10s                                                                                  
+      retries: 3                                                                                    
+      start_period: 40s                                                                             
+    env_file:
+      - .env                                                                                        
+    environment:                                                                                    
+      - OPENSEARCH_HOST=http://opensearch:9200                                                      
+      - OLLAMA_HOST=http://ollama:11434                                                             
+      - POSTGRES_DATABASE_URL=postgresql+psycopg2://paperalchemy:paperalchemy_secret@postgres:5432/paperalchemy                                                                                         
+      - LANGFUSE_HOST=http://langfuse-web:3000                                                      
+      - REDIS__HOST=redis                                                                           
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+  # ===========================================                                                     
+  # PostgreSQL (Main Database)                                                                      
+  # ===========================================                                                     
+  postgres:                                                                                         
+    image: postgres:16-alpine                                                                       
+    container_name: paperalchemy-postgres                                                           
+    environment:                                                                                    
+      - POSTGRES_DB=paperalchemy                                                                    
+      - POSTGRES_USER=paperalchemy                                                                  
+      - POSTGRES_PASSWORD=paperalchemy_secret                                                       
+      - POSTGRES_HOST_AUTH_METHOD=password                                                          
+    ports:                                                                                          
+      - "5433:5432"                                                                                 
+    volumes:                                                                                        
+      - postgres_data:/var/lib/postgresql/data                                                      
+    healthcheck:                                                                                    
+      test: ["CMD-SHELL", "pg_isready -U paperalchemy -d paperalchemy"]                             
+      interval: 5s                                                                                  
+      timeout: 5s                                                                                   
+      retries: 10                                                                                   
+      start_period: 30s                                                                             
+    restart: unless-stopped                                                                         
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+  # ===========================================                                                     
+  # Redis (Cache)                                                                                   
+  # ===========================================                                                     
+  redis:                                                                                            
+    image: redis:7-alpine                                                                           
+    container_name: paperalchemy-redis                                                              
+    ports:                                                                                          
+      - "6380:6379"                                                                                 
+    volumes:                                                                                        
+      - redis_data:/data                                                                            
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru         
+    healthcheck:                                                                                    
+      test: ["CMD", "redis-cli", "ping"]                                                            
+      interval: 10s                                                                                 
+      timeout: 3s                                                                                   
+      retries: 3                                                                                    
+      start_period: 10s                                                                             
+    restart: unless-stopped                                                                         
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+  # ===========================================                                                     
+  # OpenSearch (Search Engine)                                                                      
+  # ===========================================                                                     
+  opensearch:                                                                                       
+    image: opensearchproject/opensearch:2.19.0                                                      
+    container_name: paperalchemy-opensearch                                                         
+    environment:                                                                                    
+      - discovery.type=single-node                                                                  
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m                                                      
+      - DISABLE_SECURITY_PLUGIN=true                                                                
+      - bootstrap.memory_lock=true                                                                  
+    ports:                                                                                          
+      - "9201:9200"                                                                                 
+      - "9601:9600"                                                                                 
+    ulimits:                                                                                        
+      memlock:                                                                                      
+        soft: -1                                                                                    
+        hard: -1                                                                                    
+    volumes:                                                                                        
+      - opensearch_data:/usr/share/opensearch/data                                                  
+    healthcheck:                                                                                    
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]                
+      interval: 30s                                                                                 
+      timeout: 10s                                                                                  
+      retries: 5                                                                                    
+      start_period: 60s                                                                             
+    restart: unless-stopped                                                                         
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+  # ===========================================                                                     
+  # OpenSearch Dashboards                                                                           
+  # ===========================================                                                     
+  opensearch-dashboards:                                                                            
+    image: opensearchproject/opensearch-dashboards:2.19.0                                           
+    container_name: paperalchemy-dashboards                                                         
+    ports:                                                                                          
+      - "5602:5601"                                                                                 
+    environment:                                                                                    
+      - OPENSEARCH_HOSTS=http://opensearch:9200                                                     
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true                                                     
+    depends_on:                                                                                     
+      - opensearch                                                                                  
+    healthcheck:                                                                                    
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]                     
+      interval: 30s                                                                                 
+      timeout: 10s                                                                                  
+      retries: 5                                                                                    
+      start_period: 60s                                                                             
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+  # ===========================================                                                     
+  # Ollama (Local LLM)                                                                              
+  # ===========================================                                                     
+  ollama:                                                                                           
+    image: ollama/ollama:0.11.2                                                                     
+    container_name: paperalchemy-ollama                                                             
+    ports:                                                                                          
+      - "11434:11434"                                                                               
+    volumes:                                                                                        
+      - ollama_data:/root/.ollama                                                                   
+    healthcheck:                                                                                    
+      test: ["CMD", "ollama", "list"]                                                               
+      interval: 30s                                                                                 
+      timeout: 10s                                                                                  
+      retries: 3                                                                                    
+      start_period: 30s                                                                             
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+  # ===========================================                                                     
+  # Apache Airflow                                                                                  
+  # ===========================================                                                     
+  airflow:                                                                                          
+    image: apache/airflow:2.10.4-python3.12                                                         
+    container_name: paperalchemy-airflow                                                            
+    depends_on:                                                                                     
+      postgres:                                                                                     
+        condition: service_healthy                                                                  
+    environment:                                                                                    
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor                                                       
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://paperalchemy:paperalchemy_secret@postgres:5432/paperalchemy                                                                           
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false                                                          
+      - AIRFLOW__WEBSERVER__SECRET_KEY=paperalchemy_secret_key                                      
+    volumes:                                                                                        
+      - ./airflow/dags:/opt/airflow/dags                                                            
+      - airflow_logs:/opt/airflow/logs                                                              
+    ports:                                                                                          
+      - "8080:8080"                                                                                 
+    command: standalone                                                                             
+    healthcheck:                                                                                    
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]                                   
+      interval: 30s                                                                                 
+      timeout: 10s                                                                                  
+      retries: 3                                                                                    
+      start_period: 120s                                                                            
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+  # ===========================================                                                     
+  # ClickHouse (Langfuse Analytics)                                                                 
+  # ===========================================                                                     
+  clickhouse:                                                                                       
+    image: clickhouse/clickhouse-server:24.8-alpine                                                 
+    container_name: paperalchemy-clickhouse                                                         
+    environment:                                                                                    
+      - CLICKHOUSE_DB=langfuse                                                                      
+      - CLICKHOUSE_USER=langfuse                                                                    
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1                                                      
+      - CLICKHOUSE_PASSWORD=langfuse                                                                
+    volumes:                                                                                        
+      - clickhouse_data:/var/lib/clickhouse                                                         
+    healthcheck:                                                                                    
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]                                     
+      interval: 30s                                                                                 
+      timeout: 10s                                                                                  
+      retries: 5                                                                                    
+      start_period: 60s                                                                             
+    restart: unless-stopped                                                                         
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+  # ===========================================                                                     
+  # Langfuse PostgreSQL                                                                             
+  # ===========================================                                                     
+  langfuse-postgres:                                                                                
+    image: postgres:17                                                                              
+    container_name: paperalchemy-langfuse-postgres                                                  
+    restart: unless-stopped                                                                         
+    environment:                                                                                    
+      - POSTGRES_USER=langfuse                                                                      
+      - POSTGRES_PASSWORD=langfuse                                                                  
+      - POSTGRES_DB=langfuse                                                                        
+      - POSTGRES_HOST_AUTH_METHOD=password                                                          
+    ports:                                                                                          
+      - "5434:5432"                                                                                 
+    volumes:                                                                                        
+      - langfuse_postgres_data:/var/lib/postgresql/data                                             
+    healthcheck:                                                                                    
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]                                     
+      interval: 3s                                                                                  
+      timeout: 3s                                                                                   
+      retries: 10                                                                                   
+      start_period: 30s                                                                             
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+  # ===========================================                                                     
+  # Langfuse Redis                                                                                  
+  # ===========================================                                                     
+  langfuse-redis:                                                                                   
+    image: redis:7                                                                                  
+    container_name: paperalchemy-langfuse-redis                                                     
+    restart: unless-stopped                                                                         
+    command: --requirepass langfuse_redis_password                                                  
+    ports:                                                                                          
+      - "6381:6379"                                                                                 
+    healthcheck:                                                                                    
+      test: ["CMD", "redis-cli", "-a", "langfuse_redis_password", "ping"]                           
+      interval: 3s                                                                                  
+      timeout: 10s                                                                                  
+      retries: 10                                                                                   
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+  # ===========================================                                                     
+  # Langfuse MinIO (Object Storage)                                                                 
+  # ===========================================                                                     
+  langfuse-minio:                                                                                   
+    image: minio/minio                                                                              
+    container_name: paperalchemy-langfuse-minio                                                     
+    restart: unless-stopped                                                                         
+    entrypoint: sh                                                                                  
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'                                                                                             
+    environment:                                                                                    
+      - MINIO_ROOT_USER=langfuse_minio                                                              
+      - MINIO_ROOT_PASSWORD=langfuse_minio_secret                                                   
+    ports:                                                                                          
+      - "9090:9000"                                                                                 
+      - "9091:9001"                                                                                 
+    volumes:                                                                                        
+      - langfuse_minio_data:/data                                                                   
+    healthcheck:                                                                                    
+      test: ["CMD", "mc", "ready", "local"]                                                         
+      interval: 5s                                                                                  
+      timeout: 5s                                                                                   
+      retries: 10                                                                                   
+      start_period: 5s                                                                              
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+  # ===========================================                                                     
+  # Langfuse Web (Monitoring Dashboard)                                                             
+  # ===========================================                                                     
+  langfuse-web:                                                                                     
+    image: langfuse/langfuse:3                                                                      
+    container_name: paperalchemy-langfuse                                                           
+    restart: unless-stopped                                                                         
+    depends_on:                                                                                     
+      langfuse-postgres:                                                                            
+        condition: service_healthy                                                                  
+      langfuse-minio:                                                                               
+        condition: service_healthy                                                                  
+      langfuse-redis:                                                                               
+        condition: service_healthy                                                                  
+      clickhouse:                                                                                   
+        condition: service_healthy                                                                  
+    ports:                                                                                          
+      - "3001:3000"                                                                                 
+    environment:                                                                                    
+      NEXTAUTH_URL: http://localhost:3001                                                           
+      NEXTAUTH_SECRET: paperalchemy_nextauth_secret_key_32chars                                     
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-postgres:5432/langfuse                  
+      SALT: paperalchemy_salt_value_here                                                            
+      ENCRYPTION_KEY: 73d915d22e1cee22615144ab3f578fb067ebe8533be752b94e63752578c26142              
+      TELEMETRY_ENABLED: "false"                                                                    
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"                                                 
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000                                        
+      CLICKHOUSE_URL: http://clickhouse:8123                                                        
+      CLICKHOUSE_USER: langfuse                                                                     
+      CLICKHOUSE_PASSWORD: langfuse                                                                 
+      CLICKHOUSE_CLUSTER_ENABLED: "false"                                                           
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse                                                     
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto                                                         
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse_minio                                        
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: langfuse_minio_secret                             
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000                                 
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"                                             
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse                                                     
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto                                                         
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: langfuse_minio                                        
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: langfuse_minio_secret                             
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:9090                                      
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"                                             
+      REDIS_HOST: langfuse-redis                                                                    
+      REDIS_PORT: 6379                                                                              
+      REDIS_AUTH: langfuse_redis_password                                                           
+      LANGFUSE_INIT_ORG_NAME: "PaperAlchemy"                                                        
+      LANGFUSE_INIT_PROJECT_NAME: "Academic RAG"                                                    
+      LANGFUSE_INIT_USER_EMAIL: "admin@paperalchemy.com"                                            
+      LANGFUSE_INIT_USER_NAME: "Admin"                                                              
+      LANGFUSE_INIT_USER_PASSWORD: "admin123"                                                       
+    healthcheck:                                                                                    
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/public/health || exit 1"]              
+      interval: 30s                                                                                 
+      timeout: 10s                                                                                  
+      retries: 5                                                                                    
+      start_period: 60s                                                                             
+    networks:                                                                                       
+      - paperalchemy-network                                                                        
+                                                                                                    
+# ===========================================                                                       
+# Volumes                                                                                           
+# ===========================================                                                       
+volumes:                                                                                            
+  postgres_data:                                                                                    
+  redis_data:                                                                                       
+  opensearch_data:                                                                                  
+  ollama_data:                                                                                      
+  airflow_logs:                                                                                     
+  clickhouse_data:                                                                                  
+  langfuse_postgres_data:                                                                           
+  langfuse_minio_data:                                                                              
+                                                                                                    
+# ===========================================                                                       
+# Networks                                                                                          
+# ===========================================                                                       
+networks:                                                                                           
+  paperalchemy-network:                                                                             
+    driver: bridge
