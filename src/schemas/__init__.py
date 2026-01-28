@@ -9,6 +9,8 @@ from src.schemas.arxiv import (
     Section
 )
 
+from .arxiv import HealthResponse, ServieStatus, SearchRequest, SearchResponse, SearchHit
+
 __all__ = [
     "ArxivPaper",
     "PaperCreate",
@@ -16,4 +18,10 @@ __all__ = [
     "PaperResponse",
     "PDFContent",
     "Section"
+    # API schemas
+    "HealthResponse",
+    "ServiceStatus",
+    "SearchRequest",
+    "SearchResponse",
+    "SearchHit"
 ]
