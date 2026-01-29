@@ -34,7 +34,7 @@ class OpenSearchClient:
         self.index_name = f"{settings.opensearch.index_name}-{settings.opensearch.chunk_index_suffix}"
 
         self.client = OpenSearch(
-            host=[host],
+            hosts=[host],
             use_ssl=False,
             verify_certs=False,
             ssl_show_warn=False
@@ -44,7 +44,7 @@ class OpenSearchClient:
     def health_check(self) -> bool:
         """Check if OpenSearch cluster is healthy."""
         try:
-            health = self.client.cluster.healthy()
+            health = self.client.cluster.health()
             return health["status"] in ["green", "yellow"]
         except Exception as e:
             logging.error(f"Health check failed: {e}")
@@ -53,7 +53,7 @@ class OpenSearchClient:
     def get_index_stats(self) -> Dict[str, Any]:
         """Get statistics for the hybrid index."""
         try:
-            if not self.client.indices.exisits(index=self.index_name):
+            if not self.client.indices.exists(index=self.index_name):
                 return {
                     "index_name": self.index_name,
                     "exists": False,
@@ -64,8 +64,8 @@ class OpenSearchClient:
 
             return {
                 "index_name": self.index_name,
-                "exists": False,
-                "document_count": index_stats["docs"]["counts"],
+                "exists": True,
+                "document_count": index_stats["docs"]["count"],
                 "deleted_count": index_stats["docs"]["deleted"],
                 "size_in_bytes": index_stats["store"]["size_in_bytes"],
             }
@@ -97,7 +97,7 @@ class OpenSearchClient:
         """
         try:
             if force and self.client.indices.exists(index=self.index_name):
-                self.client.indices.deleted(index=self.index_name)
+                self.client.indices.delete(index=self.index_name)
                 logger.info(f"Deleted exisiting hybrid index: {self.index_name}")
 
             if not self.client.indices.exists(index=self.index_name):
@@ -140,7 +140,7 @@ class OpenSearchClient:
                 pass
 
             pipeline_body = {
-                "description": HYBRID_RRF_PIPELINE["descriptor"],
+                "description": HYBRID_RRF_PIPELINE["description"],
                 "phase_results_processors": HYBRID_RRF_PIPELINE["phase_results_processors"]
             }
 
@@ -165,7 +165,7 @@ class OpenSearchClient:
             latest: bool = True
     ):
         """BM25 search for papers."""
-        return self.search_bm25_only(
+        return self._search_bm25_only(
             query=query,
             size=size,
             from_=from_,
@@ -223,7 +223,7 @@ class OpenSearchClient:
 
             for hit in response["hits"]["hits"]:
                 chunk = hit["_source"]
-                chunk["score"] = hit["score"]
+                chunk["score"] = hit["_score"]
                 chunk["chunk_id"] = hit["_id"]
                 results["hits"].append(chunk)
 
@@ -309,7 +309,7 @@ class OpenSearchClient:
         for hit in response["hits"]["hits"]:
             chunk = hit["_source"]
             chunk["score"] = hit["_score"]
-            chunk["chunk_id"] = hit["id"]
+            chunk["chunk_id"] = hit["_id"]
 
             if "highlight" in hit:
                 chunk["highlights"] = hit["highlight"]
@@ -508,7 +508,7 @@ class OpenSearchClient:
             for hit in response["hits"]["hits"]:
                 chunk = hit["_source"]
                 chunk["chunk_id"] = hit["_id"]
-                chunk.append(chunk)
+                chunks.append(chunk)
 
             return chunks
         
