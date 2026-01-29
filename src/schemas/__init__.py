@@ -1,4 +1,4 @@
-"""Pydantic schemas"""
+"""Pydantic schemas."""
 
 from src.schemas.arxiv import (
     ArxivPaper,
@@ -6,22 +6,29 @@ from src.schemas.arxiv import (
     PaperUpdate,
     PaperResponse,
     PDFContent,
-    Section
+    Section,
 )
 
-from .arxiv import HealthResponse, ServieStatus, SearchRequest, SearchResponse, SearchHit
+from src.schemas.api import (
+    HealthResponse,
+    ServiceStatus,
+    SearchRequest,
+    SearchResponse,
+    SearchHit,
+)
 
 __all__ = [
+    # arXiv schemas
     "ArxivPaper",
     "PaperCreate",
     "PaperUpdate",
     "PaperResponse",
     "PDFContent",
-    "Section"
+    "Section",
     # API schemas
     "HealthResponse",
     "ServiceStatus",
     "SearchRequest",
     "SearchResponse",
-    "SearchHit"
+    "SearchHit",
 ]
