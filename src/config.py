@@ -28,16 +28,18 @@ class OpenSearchSettings(BaseSettings):
         extra="ignore",
     )                                   
                                                                                                     
-    host: str = "http://localhost:9201"       # PaperAlchemy uses port 9201
-    index_name: str = "arxiv-papers",
-    max_text_size: int = 1000000                                                                 
-    port: int = 9201                                                                               
-    user: str = "admin"                                                                            
-    password: str = "MyS3cureP@ssw0rd!"                                                            
-                                                                                                    
-    @property                                                                                      
-    def url(self) -> str:                                                                          
-        return f"https://{self.host}:{self.port}"                                                  
+    host: str = "http://localhost:9201"  # PaperAlchemy uses port 9201
+    index_name: str = "arxiv-papers"
+    chunk_index_suffix: str = "chunks"  # Creates: {index_name}-{suffix}
+    max_text_size: int = 1000000
+
+    # Vector search settings (for future weeks)
+    vector_dimension: int = 1024  # Jina embeddings dimension
+    vector_space_type: str = "cosinesimil"
+
+    # Hybrid search settings (for future weeks)
+    rrf_pipeline_name: str = "hybrid-rrf-pipeline"
+    hybrid_search_size_multiplier: int = 2                                                  
                                                                                                     
                                                                                                     
 class OllamaSettings(BaseSettings):                                                                
