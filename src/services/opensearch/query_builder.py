@@ -32,7 +32,7 @@ class QueryBuilder:
             latest_papers: Sort by publication date instead of relevance
             search_chunks: Whether seacrhing chunks (True) or papers (False)
         """
-        self.quey = query
+        self.query = query
         self.size = size
         self.from_ = from_
         self.categories = categories
@@ -114,7 +114,7 @@ class QueryBuilder:
             }
         }
     
-    def _buld_filters(self) -> List[Dict[str, Any]]:
+    def _build_filters(self) -> List[Dict[str, Any]]:
         """
         Build filter clauses for the query.
 
@@ -157,7 +157,7 @@ class QueryBuilder:
                         "fragment_size": 150,
                         "number_of_fragments": 2,
                         "pre_tags": ["<mark>"],
-                        "post_tags": ["</mark"],
+                        "post_tags": ["</mark>"],
                     },
                     "title": {                                                                                                   
                         "fragment_size": 0,                                                                                      
