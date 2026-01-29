@@ -4,6 +4,62 @@ This configuration supports both keyword search (BM25) and vector similarity sea
 using HNSW algorithm for approximate nearest neighbor search.
 """
 
+# Simple papers index (Week 3 - BM25 only)
+ARXIV_PAPERS_INDEX = "arxiv-papers"
+
+ARXIV_PAPERS_MAPPING = {
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "analysis": {
+            "analyzer": {
+                "standard_analyzer": {
+                    "type": "standard",
+                    "stopwords": "_english_"
+                },
+                "text_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": ["lowercase", "stop", "snowball"]
+                }
+            }
+        }
+    },
+    "mappings": {
+        "dynamic": "strict",
+        "properties": {
+            "arxiv_id": {"type": "keyword"},
+            "title": {
+                "type": "text",
+                "analyzer": "text_analyzer",
+                "fields": {"keyword": {"type": "keyword", "ignore_above": 512}}
+            },
+            "authors": {
+                "type": "text",
+                "analyzer": "standard_analyzer",
+                "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}
+            },
+            "abstract": {
+                "type": "text",
+                "analyzer": "text_analyzer"
+            },
+            "categories": {"type": "keyword"},
+            "published_date": {"type": "date"},
+            "updated_date": {"type": "date"},
+            "pdf_url": {"type": "keyword"},
+            "pdf_content": {
+                "type": "text",
+                "analyzer": "text_analyzer"
+            },
+            "parsing_status": {"type": "keyword"},
+            "created_at": {"type": "date"},
+            "updated_at": {"type": "date"}
+        }
+    }
+}
+
+
+# Chunks index (Week 4-5 - Hybrid search with embeddings)
 ARXIV_PAPERS_CHUNKS_INDEX = "arxiv-papers-chunks"
 
 # Index mapping for chunked papers with vector embeddings
