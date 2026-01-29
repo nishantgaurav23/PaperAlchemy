@@ -23,10 +23,11 @@ services:
     env_file:
       - .env                                                                                        
     environment:                                                                                    
-      - OPENSEARCH_HOST=http://opensearch:9200                                                      
-      - OLLAMA_HOST=http://ollama:11434                                                             
-      - POSTGRES_DATABASE_URL=postgresql+psycopg2://paperalchemy:paperalchemy_secret@postgres:5432/paperalchemy                                                                                         
-      - LANGFUSE_HOST=http://langfuse-web:3000                                                      
+      - OPENSEARCH__HOST=http://opensearch:9200
+      - OLLAMA__HOST=ollama
+      - POSTGRES__HOST=postgres
+      - POSTGRES__PORT=5432
+      - LANGFUSE__HOST=http://langfuse-web:3000
       - REDIS__HOST=redis                                                                           
     networks:                                                                                       
       - paperalchemy-network                                                                        
