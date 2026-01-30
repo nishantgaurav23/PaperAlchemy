@@ -1,7 +1,35 @@
-"""OpenSearch index configuration for hybrid search (BM25 + Vector).
+"""
+OpenSearch index mappings, analyzers, and search pipeline configuration.
 
-This configuration supports both keyword search (BM25) and vector similarity search
-using HNSW algorithm for approximate nearest neighbor search.
+Why it's needed:
+    OpenSearch needs explicit index mappings to know how to index and search
+    each field. Without mappings, it guesses types (often wrong) and uses
+    default analyzers (no stemming, no stop words). Strict dynamic mapping
+    prevents accidental field creation that wastes disk and causes confusion.
+
+What it does:
+    - ARXIV_PAPERS_MAPPING: Simple paper-level index for BM25 keyword search.
+      Uses text_analyzer (lowercase + stop words + snowball stemming) for
+      title/abstract and standard_analyzer for authors. Strict mapping rejects
+      documents with unmapped fields.
+
+    - ARXIV_PAPERS_CHUNKS_MAPPING: Hybrid chunk-level index for BM25 + vector
+      search. Adds knn_vector field (1024 dims, HNSW algorithm, cosine similarity)
+      for semantic search alongside the same text analyzers for BM25.
+
+    - HYBRID_RRF_PIPELINE: OpenSearch search pipeline that combines BM25 and
+      vector search scores using Reciprocal Rank Fusion (RRF). The formula
+      score = sum(1/(k+rank)) with k=60 produces balanced rankings without
+      requiring manual weight tuning.
+
+How it helps:
+    - text_analyzer: "running" matches "run", "runs", "runner" (snowball stemming)
+    - strict mapping: prevents indexing bugs (e.g., sending "updated_date" when
+      only "updated_at" is mapped — caught immediately, not silently ignored)
+    - knn_vector + HNSW: sub-millisecond approximate nearest neighbor search
+      even with millions of vectors (ef_construction=512 for high recall)
+    - RRF pipeline: combines keyword and semantic results without the fragile
+      score normalization that weighted averaging requires
 """
 
 # Simple papers index (Week 3 - BM25 only)
