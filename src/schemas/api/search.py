@@ -1,4 +1,27 @@
-"""Search request model."""
+"""
+Search request/response schemas for BM25 and hybrid search endpoints.
+
+Why it's needed:
+    Pydantic models validate incoming search requests (query length, page size
+    bounds) and structure outgoing responses. Without these, invalid queries
+    like empty strings or size=99999 would reach OpenSearch and either error
+    or overload the cluster.
+
+What it does:
+    - SearchRequest: Validates POST body with query, size (1-50), pagination,
+      category filters, and sort preference. Uses alias "from" for JSON
+      compatibility (from_ in Python since 'from' is a keyword).
+    - SearchHit: One search result with paper metadata + optional chunk fields
+      (chunk_text, chunk_id, section_title) for Week 4+ hybrid search.
+    - SearchResponse: Wraps hits with total count, pagination info, search_mode
+      (bm25/vector/hybrid), and optional error message.
+
+How it helps:
+    - Input validation: rejects bad queries before hitting OpenSearch
+    - API documentation: FastAPI generates Swagger UI from these schemas
+    - Type safety: routers return typed objects, not raw dicts
+    - Forward-compatible: chunk fields are Optional, ready for Week 4
+"""
 
 from typing import List, Optional
 
