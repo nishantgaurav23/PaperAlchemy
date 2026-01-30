@@ -1,4 +1,34 @@
-"""Unified OpenSearch client supporting both simple BM25 and hybrid search."""
+"""
+Unified OpenSearch client supporting BM25, vector, and hybrid search.
+
+Why it's needed:
+    OpenSearch is the search engine at the heart of PaperAlchemy. This client
+    wraps the opensearch-py library with PaperAlchemy-specific logic: index
+    management, query building, result formatting, and chunk lifecycle. Without
+    this abstraction, every router and notebook would need raw OpenSearch API
+    calls with duplicated error handling.
+
+What it does:
+    - health_check(): Verifies cluster is reachable and healthy (green/yellow)
+    - setup_indices(): Creates the hybrid index + RRF pipeline on startup
+    - search_papers(): BM25 keyword search using QueryBuilder
+    - search_unified(): Routes to BM25 or hybrid based on whether embeddings
+      are provided. This is the main search entry point for Week 4+.
+    - search_chunks_vectors(): Pure KNN vector search on embeddings
+    - _search_hybrid_native(): Combines BM25 + KNN via OpenSearch's native
+      hybrid query with RRF (Reciprocal Rank Fusion) pipeline
+    - bulk_index_chunks(): Bulk indexes chunks with embeddings
+    - delete_paper_chunks(): Deletes all chunks for a paper (for re-indexing)
+    - get_chunks_by_paper(): Retrieves chunks sorted by chunk_index
+    - get_index_stats(): Returns document count, size, and index existence
+
+How it helps:
+    - Single client for all search modes (BM25, vector, hybrid)
+    - Routers call high-level methods, not raw OpenSearch APIs
+    - Error handling is centralized (all methods catch and log exceptions)
+    - Index lifecycle (create, delete, stats) in one place
+    - RRF pipeline setup happens once at startup, not per-query
+"""
 
 import logging
 from typing import Any, Dict, List, Optional
