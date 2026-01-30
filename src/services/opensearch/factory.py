@@ -1,4 +1,25 @@
-"""Unified factory for OpenSearch client."""
+"""
+Factory functions for creating OpenSearch clients.
+
+Why it's needed:
+    OpenSearchClient requires a host URL and settings object. The factory
+    centralizes this construction so callers don't need to know how to
+    build the client. Two variants exist for different use cases.
+
+What it does:
+    - make_opensearch_client(): Cached singleton via @lru_cache. Used by
+      FastAPI lifespan to create one client shared across all requests.
+      The cache ensures the same TCP connection pool is reused.
+    - make_opensearch_client_fresh(): Creates a new client each time.
+      Used in notebooks (where the host is localhost:9201 instead of
+      the Docker service name) and tests.
+
+How it helps:
+    - Singleton pattern: one connection pool per application process
+    - Host override: notebooks pass localhost, Docker uses default
+    - Testing: factory can be patched to return mocks
+    - Consistent initialization across all call sites
+"""
 
 from functools import lru_cache
 from typing import Optional
