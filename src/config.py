@@ -1,10 +1,42 @@
-"""Application configuration using Pydantic Settings."""                                           
-                                                                                                     
-from pydantic_settings import BaseSettings, SettingsConfigDict                                     
-                                                                                                    
-                                                                                                    
-class PostgresSettings(BaseSettings):                                                              
-    """PostgreSQL database settings."""                                                            
+"""
+Centralized application configuration using Pydantic Settings.
+
+Why it's needed:
+    Every service (PostgreSQL, OpenSearch, Ollama, Redis, etc.) needs connection
+    details. Hardcoding these values would make it impossible to run the same
+    code in Docker (where hosts are service names like "postgres") vs locally
+    (where hosts are "localhost"). Pydantic Settings reads from environment
+    variables and .env files, providing one source of truth with sensible defaults.
+
+What it does:
+    - Each service gets its own Settings class with env_prefix (e.g., POSTGRES__)
+    - The main Settings class composes all sub-settings into one object
+    - Environment variables override defaults: POSTGRES__HOST=postgres overrides
+      the default "localhost"
+    - Double underscore (__) in env_prefix maps to nested settings in Docker
+      compose environment blocks
+
+How it helps:
+    - Local development: defaults work out of the box (localhost, default ports)
+    - Docker containers: compose.yml sets POSTGRES__HOST=postgres, OPENSEARCH__HOST=http://opensearch:9200
+    - Production: .env file or environment variables configure everything
+    - Type safety: Pydantic validates types (port must be int, url must be str)
+
+Architecture:
+    Settings is a singleton accessed via get_settings(). It's stored on
+    app.state during FastAPI lifespan startup and injected into routers
+    via the SettingsDep dependency (see dependency.py).
+"""
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class PostgresSettings(BaseSettings):
+    """PostgreSQL database connection settings.
+
+    Used by: src/db/database.py to create SQLAlchemy engine.
+    The url property builds the full connection string from parts.
+    """                                                            
                                                                                                     
     model_config = SettingsConfigDict(env_prefix="POSTGRES__")                                     
                                                                                                     
@@ -19,8 +51,13 @@ class PostgresSettings(BaseSettings):
         return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"       
                                                                                                     
                                                                                                     
-class OpenSearchSettings(BaseSettings):                                                            
-    """OpenSearch settings."""                                                                     
+class OpenSearchSettings(BaseSettings):
+    """OpenSearch search engine settings.
+
+    Used by: src/services/opensearch/client.py to connect to the cluster.
+    The chunk index name is built as: {index_name}-{chunk_index_suffix}
+    e.g., "arxiv-papers-chunks" — this is the primary index for search.
+    """                                                                     
                                                                                                     
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -114,8 +151,12 @@ class AppSettings(BaseSettings):
     log_level: str = "INFO"                                                                        
                                                                                                     
                                                                                                     
-class Settings(BaseSettings):                                                                      
-    """Main settings class combining all settings."""                                              
+class Settings(BaseSettings):
+    """Root settings class composing all sub-settings into one object.
+
+    Access pattern: settings.postgres.url, settings.opensearch.host, etc.
+    Loaded once at startup and stored on FastAPI app.state for dependency injection.
+    """                                              
                                                                                                     
     model_config = SettingsConfigDict(                                                             
         env_file=".env",                                                                           
