@@ -1,7 +1,35 @@
+"""
+OpenSearch query builder for constructing complex search queries.
+
+Why it's needed:
+    OpenSearch queries are deeply nested JSON structures. Building them
+    inline in the client code is error-prone and hard to maintain. The
+    QueryBuilder encapsulates all query construction logic, producing
+    well-structured queries with proper scoring, filtering, highlighting,
+    and sorting.
+
+What it does:
+    - build(): Assembles the complete query body by combining:
+      - _build_query(): Bool query with must (text search) + filter (categories)
+      - _build_text_query(): Multi-match across fields with boosting (title^3)
+      - _build_filters(): Category term filters (don't affect scoring)
+      - _build_source_fields(): Which fields to return (excludes embeddings)
+      - _build_highlight(): HTML <mark> tags around matching terms
+      - _build_sort(): Relevance scoring vs date sorting
+
+How it helps:
+    - Clean separation: client.py calls builder.build(), doesn't construct JSON
+    - Two modes: paper-level search (title^3, abstract^2, authors^1) and
+      chunk-level search (chunk_text^3, title^2, abstract^1)
+    - Fuzzy matching: handles typos via fuzziness="AUTO" with prefix_length=2
+    - Extensible: add new filters or query types without touching client.py
+"""
+
 import logging
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
 
 class QueryBuilder:
     """
