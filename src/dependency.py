@@ -1,4 +1,26 @@
-"""Fast API dependency injection for PaperAlchemy services."""
+"""
+FastAPI dependency injection for PaperAlchemy services.
+
+Why it's needed:
+    Router functions need access to database connections, OpenSearch clients,
+    and settings — but shouldn't create them directly. Dependency injection
+    lets FastAPI automatically provide these objects to any route handler
+    that declares them as parameters, keeping routers thin and testable.
+
+What it does:
+    - get_settings(): Reads Settings from app.state (set during lifespan startup)
+    - get_database(): Reads Database from app.state
+    - get_db_session(): Opens a SQLAlchemy session scoped to one request (yields + auto-closes)
+    - get_opensearch_client(): Reads OpenSearchClient from app.state
+    - Annotated type aliases (SettingsDep, DatabaseDep, etc.) let routers
+      declare dependencies concisely: `def search(client: OpenSearchDep)`
+
+How it helps:
+    - Routers don't import factories or create clients — they just declare what they need
+    - Testing: override dependencies with mocks using app.dependency_overrides
+    - Lifecycle: sessions are opened per-request and closed automatically
+    - Type safety: IDE autocomplete works because Annotated preserves the type
+"""
 
 from typing import Annotated, Generator, Optional
 
