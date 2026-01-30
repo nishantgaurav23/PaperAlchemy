@@ -1,4 +1,31 @@
-"""PaperAlchemy - FastAPI Application Entry Point."""                                              
+"""
+PaperAlchemy — FastAPI Application Entry Point.
+
+Why it's needed:
+    This is the single entry point that boots the entire application.
+    It initializes all services (database, OpenSearch), registers all API
+    routers, and handles graceful shutdown. Without a lifespan manager,
+    services would be created lazily on first request, causing slow first
+    responses and potential race conditions.
+
+What it does:
+    - lifespan(): Async context manager that runs on startup/shutdown:
+      1. Loads settings from environment
+      2. Creates database connection pool
+      3. Creates OpenSearch client and sets up indices (if not exist)
+      4. Stores all services on app.state for dependency injection
+      5. On shutdown: tears down database connections
+    - Registers routers: ping (/api/v1/health) and search (/api/v1/search)
+    - Simple /health endpoint for Docker healthcheck probes
+    - CORS middleware allows all origins (development mode)
+
+How it helps:
+    - Services are initialized once at startup, not per-request
+    - app.state makes services available to all routers via dependency injection
+    - Graceful shutdown prevents connection leaks
+    - Docker healthcheck uses /health (fast, no dependencies) while
+      /api/v1/health checks all services (detailed, for monitoring)
+"""                                              
                                                                                                      
 import logging
 from contextlib import asynccontextmanager
