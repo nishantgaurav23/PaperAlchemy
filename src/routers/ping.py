@@ -1,4 +1,24 @@
-"""Health check router with services status."""
+"""
+Health check router with per-service status reporting.
+
+Why it's needed:
+    Production systems need a detailed health endpoint that checks every
+    dependency (database, search engine). Load balancers use the simple
+    /health endpoint, while monitoring dashboards use /api/v1/health to
+    see which specific service is down.
+
+What it does:
+    - GET /api/v1/health: Probes PostgreSQL (SELECT 1) and OpenSearch
+      (cluster health + index stats). Returns structured JSON with
+      per-service status ("healthy"/"unhealthy") and overall status
+      ("ok"/"degraded").
+
+How it helps:
+    - Monitoring: Grafana/Datadog can parse the JSON to create alerts
+    - Debugging: immediately see if OpenSearch is down vs database is down
+    - Load balancers: route traffic away from degraded instances
+    - On-call: first thing to check when users report issues
+"""
 
 import logging
 
