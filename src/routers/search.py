@@ -1,4 +1,27 @@
-"""Search router for BM25 and hybrid search."""
+"""
+BM25 keyword search router with GET and POST endpoints.
+
+Why it's needed:
+    This is the primary search interface for PaperAlchemy. It exposes
+    OpenSearch BM25 search through two HTTP methods:
+    - GET /api/v1/search?q=... for simple browser/curl queries
+    - POST /api/v1/search with JSON body for programmatic access with
+      filters, pagination, and sorting options.
+
+What it does:
+    - Validates query parameters and request body via Pydantic schemas
+    - Checks OpenSearch health before every search (returns 503 if down)
+    - Delegates to OpenSearchClient.search_papers() for BM25 scoring
+    - Formats raw OpenSearch hits into typed SearchHit models
+    - Returns SearchResponse with total count, hits, and search_mode
+
+How it helps:
+    - Two endpoints for different use cases (browser vs API client)
+    - Health guard prevents cryptic errors when OpenSearch is down
+    - Structured response makes frontend integration straightforward
+    - _format_hits() centralizes hit formatting (DRY — used by both endpoints)
+    - Error logging helps debug search failures in production
+"""
 
 import logging
 
