@@ -141,6 +141,42 @@ class PDFParserSettings(BaseSettings):
     max_file_size_mb: int = 50                                                                            
     timeout: int = 30
     cache_dir: str = "data/arxiv_pdfs"
+
+class ChunkingSettings(BaseSettings):
+    """Text chunking settings for splitting papers into searchable segments.
+
+    Why it's needed:
+        Full paper text is too long for embedding models (Jina v3 has a token
+        limit) and too coarse for precise retrieval. Chunking splits papers
+        into overlapping segments so each chunk can be independently embedded
+        and retrieved.
+
+    What it does:
+        - chunk_size: Target number of words per chunk (600 balances context
+          richness with embedding model limits)
+        - overlap_size: Words shared between adjacent chunks (100 words ensures
+          sentences split at chunk boundaries are stll retrievable)
+        - min_chunk_size: Chunks smaller than this are merged with neighbors
+          to avoid low-quality fragments (e.g., a 20 word "Acknowledgments)
+        - section_based: When True, respects paper section boundaries
+          (Introduction, Methods, etc.) so chunks don't mix unrelated content
+    
+    How it helps:
+        - 600-word chunks ≈ 800 tokens - fits comfortably with Jina's context
+        - 100-word overlap means a sentence on a boundary appears in both chunks,
+          so it's a;ways retrieval regardless of which chunk matches.
+        - Section-aware chunking keeps "Methods" text separate from "Results",
+          improving retrieval precision for section-specific queries.
+    """
+
+    model_config = SettingsConfigDict(ebv_prefic="CHUNKING__")
+
+    chunk_size: int = 600           # Target words per chunk
+    overlap_size: int = 100         # Words to overlap between chunks
+    min_chunk_size: int = 100       # Minimum words for a valid chunk
+    section_based: bool = True      # Respect paper section boundaries
+
+    
                                                                                                     
 class AppSettings(BaseSettings):                                                                   
     """Application settings."""                                                                    
@@ -172,7 +208,8 @@ class Settings(BaseSettings):
     telegram: TelegramSettings = TelegramSettings()                                                
     app: AppSettings = AppSettings() 
     arxiv: ArxivSettings = ArxivSettings()
-    pdf_parser: PDFParserSettings = PDFParserSettings()                                                             
+    pdf_parser: PDFParserSettings = PDFParserSettings()
+    chunking: ChunkingSettings = ChunkingSettings()                                                             
 
     # API Keys                                                                                     
     jina_api_key: str = ""                                                                         
