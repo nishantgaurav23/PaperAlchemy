@@ -2,22 +2,54 @@
 Pydantic models for text chunking and indexing.
 
 Why it's needed:
-    When we split a paper into chunks for indexing, each chunk needs metadata
-    (position, word count, section title, overlap info). Without structured
-    models, this metadata would be scattered across dicts with inconsistent
-    keys, making bugs hard to find and code hard to maintain.
+    When we split a paper into chunks, we need structured objects that carry                                                     
+    both the text and its positional metadata through the pipeline. Without                                                      
+    these models, we'd pass around raw dicts or tuples — losing type safety,                                                     
+    validation, and IDE autocompletion. Pydantic models ensure every chunk                                                       
+    has the required fields with correct types before it reaches OpenSearch.
 
 What it does:
-    - ChunkMetadata: Tracks where a chunk came from in the original document
-      (character offsets, word count, overlap amounts, section title).
-    - TextChunk: Pairs the actual chunk text with its metadata, plus the
-      paper identifiers (arxiv_id, paper_id) needed for OpenSearch indexing.
+    - ChunkMetadata: Captures WHERE a chunk lives within the original paper.                                                     
+      Tracks its position (chunk_index), character offsets (start_char/end_char),                                                
+      size (word_count), overlap with neighbors, and which section it came from.                                                 
+    - TextChunk: Pairs the actual chunk text with its metadata and links it                                                      
+      back to the source paper via arxiv_id and paper_id.  .
 
 How it helps:
     The TextChunker produces List[TextChunk], which the HybridIndexer consumes.
     Pydantic validation ensures every chunk has all required fields before
     we attempt to generate embeddings or index into OpenSearch. This catches
     bugs like missing arxiv_id at chunk creation time, not at indexing time.
+
+    - chunk_index: Preserves reading order so chunks can be reassembled                                                          
+    - start_char/end_char: Enables highlighting the exact source passage in the UI                                               
+    - overlap_with_previous/next: Lets downstream code know how much text is                                                     
+      shared between adjacent chunks (useful for deduplication in search results)                                                
+    - section_title: Powers section-filtered search ("show me only Methods chunks")                                              
+    - arxiv_id + paper_id: Links chunks back to their parent paper in PostgreSQL                                                 
+      and the papers OpenSearch index 
+
+    PDF text                                                                                                                         
+            ↓                                                                                                                             
+    TextChunker.chunk_text()                                                                                                         
+        ↓                                                                                                                             
+    List[TextChunk]  ←── each has .text + .metadata + .arxiv_id + .paper_id                                                          
+        ↓                                                                                                                             
+    HybridIndexer: sends chunk.text → Jina API → gets embedding vector                                                               
+        ↓                                                                                                                             
+    HybridIndexer: builds OpenSearch document from TextChunk fields + embedding                                                      
+        ↓                                                                                                                             
+    OpenSearch bulk index                                                                                                            
+                                                                                                                                    
+    Key design decisions:                                                                                                            
+    - Pydantic BaseModel (not dataclass) — gives us .model_dump() for easy serialization to OpenSearch documents, plus automatic     
+      validation.                                                                                                                      
+    - overlap_with_previous/next — tracked per-chunk so we can deduplicate overlapping content when displaying consecutive search    
+      results.                                                                                                                         
+    - section_title is Optional — not all papers have parseable section headers; plain text papers get None.                         
+    - Both arxiv_id and paper_id — arxiv_id is the human-readable identifier for the papers index; paper_id is the PostgreSQL UUID   
+      for joining with the relational database. 
+
 """
 
 from typing import Optional
@@ -55,13 +87,13 @@ class ChunkMetadata(BaseModel):
                        if traditional word-based chunking was used.
     """
 
-    chunk_index: int
-    start_char: int
-    end_char: int
-    word_count: int
-    overlap_with_previous: int
-    overlap_with_next: int
-    section_title: Optional[str] = None
+    chunk_index: int                        # 0-based position in the paper 
+    start_char: int                         # Character offset where chunk starts in full text
+    end_char: int                           # Character offset where chunk ends in full text
+    word_count: int                         # Number of words in this chunk
+    overlap_with_previous: int              # Words shared with the previous chunk 
+    overlap_with_next: int                  # Words shared with the next chunk 
+    section_title: Optional[str] = None     # Paper section (e.g., "Introduction", "Methods")
 
 
 class TextChunk(BaseModel):
@@ -85,9 +117,10 @@ class TextChunk(BaseModel):
         paper_id: The PostgreSQL primary key of the source paper. Stored
                   in OpenSearch for efficient joins back to the database
                   when additional paper metadata is needed.
+
     """
 
-    text: str
-    metadata: ChunkMetadata
-    arxiv_id: str
-    paper_id: str
+    text: str                   # The actual chunk text (target ~600 words) 
+    metadata: ChunkMetadata     # Positional and structural metadata
+    arxiv_id: str               # arXiv identifier (e.g., "2401.12345") — links to papers index  
+    paper_id: str               # Internal UUID from PostgreSQL papers table
