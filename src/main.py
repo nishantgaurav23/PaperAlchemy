@@ -37,8 +37,9 @@ from fastapi.middleware.cors import CORSMiddleware
 # from src.config import settings
 from src.config import get_settings
 from src.db.factory import make_database
-from src.routers import ping, search
+from src.routers import ping, search, hybrid_search
 from src.services.opensearch.factory import make_opensearch_client 
+from src.services.embeddings.factory import make_embeddings_service
 
 # Setup logging
 logging.basicConfig(
@@ -92,7 +93,8 @@ async def lifespan(app: FastAPI):
     # Future weeks will add:                                                                                                     
     # app.state.arxiv_client = make_arxiv_client()                                                                               
     # app.state.pdf_parser = make_pdf_parser_service()                                                                           
-    # app.state.embeddings_service = make_embeddings_service()                                                                   
+    app.state.embeddings_service = make_embeddings_service() 
+    logger.info("Jina embeddings servie initialized")                                                                  
     # app.state.ollama_client = make_ollama_client()                                                                             
     # app.state.langfuse_tracer = make_langfuse_tracer()                                                                         
     # app.state.cache_client = make_cache_client(settings) 
@@ -121,6 +123,7 @@ app.add_middleware(
 )
 
 # Register routers
+app.include_router(hybrid_search.router, prefix="/api/v1")
 app.include_router(ping.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
                                                                                                     
