@@ -52,9 +52,9 @@ from fastapi import APIRouter, HTTPException
 from src.dependency import EmbeddingsDep, OpenSearchDep
 from src.schemas.api.search import HybridSearchRequest, SearchHit, SearchResponse
 
-logger = logging.gerLogger(__name__)
+logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/hybrid-search", tags="hybrid-search")
+router = APIRouter(prefix="/hybrid-search", tags=["hybrid-search"])
 
 @router.post("/", response_model=SearchResponse)
 async def hybrid_search(
@@ -114,7 +114,6 @@ async def hybrid_search(
             from_=request.from_,
             categories=request.categories,
             latest=request.latest_papers,
-            use_hybrid=request.latest_papers,
             use_hybrid=request.use_hybrid,
             min_score=request.min_score,
         )
@@ -126,8 +125,8 @@ async def hybrid_search(
                 SearchHit(
                     arxiv_id=hit.get("arxiv_id"),
                     title=hit.get("title", ""),
-                    authors=hit.get("authors"),
-                    abstract=hit.get("published_date"),
+                    authors=hit.get("authors").split(", ") if isinstance(hit.get("authors"), str) else hit.get("authors"),
+                    abstract=hit.get("abstract"),
                     pdf_url=hit.get("pdf_url"),
                     score=hit.get("score", 0.0),
                     highlights=hit.get("highlights"),
