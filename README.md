@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/PostgreSQL-17-blue.svg" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/Airflow-2.10-red.svg" alt="Airflow">
   <img src="https://img.shields.io/badge/Docker-Compose-blue.svg" alt="Docker">
-  <img src="https://img.shields.io/badge/Status-Week%203%20Complete-brightgreen.svg" alt="Status">
+  <img src="https://img.shields.io/badge/Status-Week%204%20Complete-brightgreen.svg" alt="Status">
 </p>
 
 ---
@@ -129,7 +129,7 @@ sequenceDiagram
 | **Week 1** | Infrastructure Foundation | ✅ Complete | Docker Compose, FastAPI, PostgreSQL, OpenSearch, Airflow, Ollama |
 | **Week 2** | Data Ingestion Pipeline | ✅ Complete | arXiv API, Docling PDF parser, SQLAlchemy ORM, Repository pattern |
 | **Week 3** | Keyword Search (BM25) | ✅ Complete | OpenSearch indexing, QueryBuilder, Search API, Custom analyzers |
-| **Week 4** | Chunking & Hybrid Search | ⬜ Planned | Section-aware chunking, Jina embeddings, RRF fusion |
+| **Week 4** | Chunking & Hybrid Search | ✅ Complete | Section-aware chunking, Jina embeddings, RRF fusion, Hybrid search API |
 | **Week 5** | Complete RAG Pipeline | ⬜ Planned | Ollama LLM, Streaming SSE, Gradio interface |
 | **Week 6** | Production Monitoring | ⬜ Planned | Langfuse tracing, Redis caching, Cost analysis |
 | **Week 7** | Agentic RAG | ⬜ Planned | LangGraph workflows, Guardrails, Telegram bot |
@@ -176,6 +176,7 @@ uv run jupyter lab notebooks/
 uv run jupyter lab notebooks/week1/week1_setup.ipynb
 uv run jupyter lab notebooks/week2/week2_arxiv_integration.ipynb
 uv run jupyter lab notebooks/week3/week3_opensearch.ipynb
+uv run jupyter lab notebooks/week4/week4_hybrid_search.ipynb
 ```
 
 ---
@@ -292,13 +293,14 @@ graph LR
 
 ---
 
-## Week 4: Chunking & Hybrid Search ⬜ (Planned)
+## Week 4: Chunking & Hybrid Search ✅
 
 ### Learning Objectives
-- Section-based document chunking with overlap strategies
-- Jina AI embeddings (1024-dim vectors, asymmetric encoding)
-- Hybrid search: BM25 + vector with RRF fusion
-- Unified search API supporting multiple search modes
+- Section-based document chunking with overlap strategies (600 words, 100 overlap)
+- Jina AI embeddings (1024-dim vectors, asymmetric encoding: `retrieval.passage` / `retrieval.query`)
+- Hybrid search: BM25 + KNN vector search with RRF (Reciprocal Rank Fusion) pipeline
+- Unified search API supporting multiple search modes with graceful degradation
+- Factory pattern for service wiring
 
 ### Architecture
 
@@ -316,6 +318,18 @@ graph LR
     G --> F
     F -->|RRF Fusion| J[Hybrid Results]
 ```
+
+**Key Components:**
+- `src/services/indexing/text_chunker.py` — Section-aware chunking with configurable overlap
+- `src/services/indexing/hybrid_indexer.py` — End-to-end pipeline: chunk → embed → index
+- `src/services/indexing/factory.py` — Factory wiring TextChunker + Jina + OpenSearch
+- `src/services/embeddings/jina_client.py` — Jina AI embedding client (async, batched)
+- `src/services/embeddings/factory.py` — Embeddings client factory
+- `src/schemas/indexing/models.py` — ChunkMetadata and TextChunk data models
+- `src/schemas/api/search.py` — HybridSearchRequest with `use_hybrid` toggle
+- `src/routers/hybrid_search.py` — POST `/api/v1/hybrid-search` with BM25 fallback
+
+**Notebook:** [notebooks/week4/week4_hybrid_search.ipynb](notebooks/week4/week4_hybrid_search.ipynb)
 
 ---
 
@@ -357,13 +371,22 @@ PaperAlchemy/
 │   ├── schemas/                  # Pydantic validation schemas
 │   │   ├── api/                  # API request/response schemas
 │   │   │   ├── health.py         # ServiceStatus, HealthResponse
-│   │   │   └── search.py         # SearchRequest, SearchHit, SearchResponse
+│   │   │   └── search.py         # SearchRequest, HybridSearchRequest, SearchResponse
+│   │   ├── indexing/             # Indexing pipeline schemas
+│   │   │   └── models.py         # ChunkMetadata, TextChunk
 │   │   └── arxiv/                # arXiv paper schemas
 │   ├── repositories/             # Data access layer (Repository pattern)
 │   │   └── paper.py              # Paper CRUD operations
 │   ├── services/                 # Business logic services
 │   │   ├── arxiv/                # arXiv API client + factory
 │   │   ├── pdf_parser/           # Docling PDF parser + factory
+│   │   ├── embeddings/           # Jina AI embeddings
+│   │   │   ├── jina_client.py    # Async Jina embedding client
+│   │   │   └── factory.py        # Embeddings service factory
+│   │   ├── indexing/             # Chunking & indexing pipeline
+│   │   │   ├── text_chunker.py   # Section-aware text chunker
+│   │   │   ├── hybrid_indexer.py # Chunk → embed → index pipeline
+│   │   │   └── factory.py        # Indexing service factory
 │   │   └── opensearch/           # OpenSearch client, query builder, config
 │   │       ├── client.py         # Unified search client (BM25/vector/hybrid)
 │   │       ├── query_builder.py  # Query construction with field boosting
@@ -371,11 +394,13 @@ PaperAlchemy/
 │   │       └── factory.py        # Client factory (cached + fresh)
 │   └── routers/                  # API route handlers
 │       ├── ping.py               # /api/v1/health with service checks
-│       └── search.py             # /api/v1/search GET + POST
+│       ├── search.py             # /api/v1/search GET + POST
+│       └── hybrid_search.py      # /api/v1/hybrid-search POST
 ├── notebooks/                    # Weekly learning notebooks
 │   ├── week1/                    # Infrastructure setup
 │   ├── week2/                    # arXiv integration & PDF parsing
-│   └── week3/                    # BM25 keyword search
+│   ├── week3/                    # BM25 keyword search
+│   └── week4/                    # Chunking & hybrid search
 ├── compose.yml                   # Docker services (12 containers)
 ├── Dockerfile                    # Application container
 ├── pyproject.toml                # Python dependencies (UV)
