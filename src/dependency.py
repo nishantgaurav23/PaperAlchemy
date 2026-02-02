@@ -34,6 +34,7 @@ from src.services.opensearch.client import OpenSearchClient
 # Future week dependencies (uncomment as services are added)
 from src.services.arxiv.client import ArxivClient
 from src.services.pdf_parser.service import PDFParserService
+from src.services.jina_client import JinaEmbeddingsClient
 # from src.services.embeddings.client import EmbeddingsClient
 # from src.services.ollama.client import OllamaClient
 # from src.services.langfuse.client import LangfuseTracer
@@ -63,8 +64,13 @@ def get_arxiv_client(request: Request) -> ArxivClient:
 def get_pdf_parser(request: Request) -> PDFParserService:
     return request.app.state.pdf_parser
 
-# def get_embeddings_service(request: Request) -> EmbeddingClient:
-#     return request.app.state.embeddings_service
+def get_embeddings_service(request: Request) -> JinaEmbeddingsClient:
+     """Get Jina embeddings client from the request state.
+     
+     Set during lifespan startup via make_embeddings_service().
+     Used by the hybrid search router to embed queries at searh time.
+     """
+     return request.app.state.embeddings_service
 
 # def get_ollama_client(request: Request) -> OllamaClient:
 #     return request.app.state.ollama_client
@@ -86,7 +92,7 @@ OpenSearchDep = Annotated[OpenSearchClient, Depends(get_opensearch_client)]
 # Future week dependencies (uncomment as services are added)
 ArxivDep = Annotated[ArxivClient, Depends(get_arxiv_client)]
 PDFParserDep = Annotated[PDFParserService, Depends(get_pdf_parser)]
-# EmbeddingsDep = Annotated[EmbeddingsClient, Depends(get_embeddings_service)]
+EmbeddingsDep = Annotated[JinaEmbeddingsClient, Depends(get_embeddings_service)]
 # OllamaDep = Annotated[OllamaClient, Depends(get_pllama_client)]
 # LangFuseDep = Annotated[LangFuseTraer, Depends(get_langfuse_tracer)]
 # CacheDep = Annotated[Optional[CacheClient], Depends(get_cache_client)
