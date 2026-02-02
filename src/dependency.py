@@ -34,7 +34,7 @@ from src.services.opensearch.client import OpenSearchClient
 # Future week dependencies (uncomment as services are added)
 from src.services.arxiv.client import ArxivClient
 from src.services.pdf_parser.service import PDFParserService
-from src.services.jina_client import JinaEmbeddingsClient
+from src.services.embeddings.jina_client import JinaEmbeddingsClient
 # from src.services.embeddings.client import EmbeddingsClient
 # from src.services.ollama.client import OllamaClient
 # from src.services.langfuse.client import LangfuseTracer
