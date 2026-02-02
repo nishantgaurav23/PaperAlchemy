@@ -59,6 +59,78 @@ class SearchRequest(BaseModel):
     class Config:
         populate_by_name = True
 
+class HybridSearchRequest(BaseModel):
+    """Request model for hybrid search supporting BM25, vector, and hybrid modes.
+
+    Why it's needed:
+        The hybrid search endpoint needs additional controls beyond basic
+        SearchRequest: toggling hybrid model on/off (fallback to pure BM25),
+        and filtering low-confidence results via min_score. This keeps the 
+        original SearchRequest unchanged for backward compatibility.
+
+    What it does:
+        - use_hybrid: When True, the router embeds the uery via Jina and
+          runs both B25 + KNN search with RRF fusion. When False, falls
+          back to pure BM25 KEYWORD SEARCH (Useful when Jina is down).
+        - min_score: Filters out results below this threshold. hYBRID rrf
+          scores are typical 0.0-0.03, so even 0.001 can remove noise.
+        - size allows up to 100 (vs 50 for basic search) because hybrid
+          search returns chunk-level results which may need deduplication.
+
+    How it helps:
+        - Graceful degradation: set use_hybrid=False if embeddings API fails
+        - Quality control: min_score removes low-relevance noise
+        - Swagger docs: json_schema_extra provides a working example
+    """
+
+    query: str = Field(
+        ...,
+        description="Search query text",
+        min_length=1,
+        max_length=500
+    )
+    size:int = Field(
+        10,
+        description="Number of results to return",
+        ge=1, le=100
+    )
+    from_: int = Field(
+        0,
+        description="Offset for pagination",
+        ge=0,
+        alias="from"
+    )
+    categories: Optional[List[str]] = Field(
+        None,
+        description="Filter by arXiv categories (e.g., ['cs.AI','cs.LG'])"
+    )
+    latest_papers: bool = Field(
+        False,
+        description="Sort by publication date instead of relevance"
+    )
+    use_hybrid: bool = Field(
+        False,
+        description="Enable hybrid search (BM25 + vector) with automatic "
+                    "embedding generation. Set False to use BM25 only"               
+    )
+    min_score: float = Field(
+        0.0,
+        description="Minimum score threshold for results",
+        ge=0.0
+    )
+
+    class Config:
+        populate_by_name = True
+        json_schema_extra = {
+            "example": {
+                "query": "machine learning neural networks",
+                "size": 10,
+                "categories": ["cs.AI", "cs.LG"],
+                "latest_papers": False,
+                "use_hybrid": True,
+            }
+        }
+
 class SearchHit(BaseModel):
     """Individual search result."""
 
