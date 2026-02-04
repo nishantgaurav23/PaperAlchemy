@@ -37,8 +37,6 @@ from opensearchpy import OpenSearch
 
 from src.config import Settings
 from .index_config import (                                                                                                      
-      ARXIV_PAPERS_INDEX,                                                                                                          
-      ARXIV_PAPERS_MAPPING,                                                                                                        
       ARXIV_PAPERS_CHUNKS_MAPPING,                                                                                                 
       HYBRID_RRF_PIPELINE,                                                                                                         
   )                                                                                                                                

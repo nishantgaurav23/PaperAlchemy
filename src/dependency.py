@@ -22,7 +22,7 @@ How it helps:
     - Type safety: IDE autocomplete works because Annotated preserves the type
 """
 
-from typing import Annotated, Generator, Optional
+from typing import Annotated, Generator
 
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session

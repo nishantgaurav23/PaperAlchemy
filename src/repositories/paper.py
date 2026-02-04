@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy import select, and_, or_                                                         
 from sqlalchemy.orm import Session                                                               
 from sqlalchemy.dialects.postgresql import insert                                                
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError                                    
+                                    
                                                                                                 
 from src.models.paper import Paper                                                               
 from src.schemas.arxiv.paper import PaperCreate, PaperUpdate                                     

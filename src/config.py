@@ -80,16 +80,47 @@ class OpenSearchSettings(BaseSettings):
                                                                                                     
                                                                                                     
 class OllamaSettings(BaseSettings):                                                                
-    """Ollama LLM settings."""                                                                     
+    """Ollama LLM settings for local language model inference.
+    
+    Why it's needed:
+        Ollama suns locally and provides an API similar to OPenAI's. We need 
+        connection details (host/port), default model selection, and generation
+        parameters. All values are defaults that can be overridden per-request.
+
+    What it does:
+        - host/port: Where Ollama server is running (localhost:11424 by default)
+        - default_model: Fallback model when not specified in request
+        - default_timeout: How long to wait for LLM responses
+        - default_temperature: Controls randomness in generation
+        - default_top_p: Nucleus sampling threshold
+
+    How it helps:
+        - All configurable via OLLAMA_* environment variables
+        - Docker uses OLLAMA_HOST=ollama, local uses localhost
+        - Change defaults without code changes via .env file
+        - Per request override via AskRequest fields (model, temperature, etc.)
+
+    Configuration hierarchy (highest priority wins):
+        1. Per-request parameter (in API call body)
+        2. Environment variable (OLLAMA_DEFAULT_MODEL=...)
+        3. Code default (defined here)
+    """                                                                     
                                                                                                     
-    model_config = SettingsConfigDict(env_prefix="OLLAMA__")                                       
-                                                                                                    
+    model_config = SettingsConfigDict(env_prefix="OLLAMA__")   
+
+    # Connection settingss                                                                                                                                   
     host: str = "localhost"                                                                        
-    port: int = 11434                                                                              
-    model: str = "llama3.2"                                                                        
+    port: int = 11434    
+
+    # Generation defaults (all overridable per-request)                                                                          
+    default_model: str = "llama3.2" 
+    default_timeout: int = 120 # Seconds; LLM generation can b slow
+    default_temperature: float = 0.7 # 0.0=deterministic, .0=very random
+    default_top_p: float = 0.9 # Nucleus sampling: top 90% probability mass                                                                       
                                                                                                     
     @property                                                                                      
-    def url(self) -> str:                                                                          
+    def url(self) -> str:
+        """Build full Ollama API base URL."""                                                                          
         return f"http://{self.host}:{self.port}"                                                   
                                                                                                     
                                                                                                     
