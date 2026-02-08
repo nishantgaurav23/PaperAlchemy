@@ -113,7 +113,7 @@ class OllamaSettings(BaseSettings):
     port: int = 11434    
 
     # Generation defaults (all overridable per-request)                                                                          
-    default_model: str = "llama3.2" 
+    default_model: str = "llama3.2:1b" # Ollama model name (e.g., "llama3.2:1b")
     default_timeout: int = 120 # Seconds; LLM generation can b slow
     default_temperature: float = 0.7 # 0.0=deterministic, .0=very random
     default_top_p: float = 0.9 # Nucleus sampling: top 90% probability mass                                                                       

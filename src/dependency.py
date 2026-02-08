@@ -36,7 +36,7 @@ from src.services.arxiv.client import ArxivClient
 from src.services.pdf_parser.service import PDFParserService
 from src.services.embeddings.jina_client import JinaEmbeddingsClient
 # from src.services.embeddings.client import EmbeddingsClient
-# from src.services.ollama.client import OllamaClient
+from src.services.ollama.client import OllamaClient
 # from src.services.langfuse.client import LangfuseTracer
 # from src.services.cache.client import CacheClient
 
@@ -72,8 +72,12 @@ def get_embeddings_service(request: Request) -> JinaEmbeddingsClient:
      """
      return request.app.state.embeddings_service
 
-# def get_ollama_client(request: Request) -> OllamaClient:
-#     return request.app.state.ollama_client
+def get_ollama_client(request: Request) -> OllamaClient:
+    """Get Ollama client from the request state.
+    Set during lifespan startup. Used by the /ask router
+    to generate RAG answers from retrieved paper chunks.
+    """
+    return request.app.state.ollama_client
 
 # def get_langfuse_tracer(request: Request) -> LangfuseTracer:
 #     return request.app.state.langfuse_tracer
@@ -93,6 +97,6 @@ OpenSearchDep = Annotated[OpenSearchClient, Depends(get_opensearch_client)]
 ArxivDep = Annotated[ArxivClient, Depends(get_arxiv_client)]
 PDFParserDep = Annotated[PDFParserService, Depends(get_pdf_parser)]
 EmbeddingsDep = Annotated[JinaEmbeddingsClient, Depends(get_embeddings_service)]
-# OllamaDep = Annotated[OllamaClient, Depends(get_pllama_client)]
+OllamaDep = Annotated[OllamaClient, Depends(get_ollama_client)]
 # LangFuseDep = Annotated[LangFuseTraer, Depends(get_langfuse_tracer)]
 # CacheDep = Annotated[Optional[CacheClient], Depends(get_cache_client)

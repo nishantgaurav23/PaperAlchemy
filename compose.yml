@@ -13,7 +13,9 @@ services:
       opensearch:                                                                                   
         condition: service_healthy                                                                  
       redis:                                                                                        
-        condition: service_healthy                                                                  
+        condition: service_healthy
+      ollama: 
+        condition: service_healthy                                                                 
     healthcheck:                                                                                    
       test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health')\""]                                          
       interval: 30s                                                                                 
@@ -25,6 +27,7 @@ services:
     environment:                                                                                    
       - OPENSEARCH__HOST=http://opensearch:9200
       - OLLAMA__HOST=ollama
+      - OLLAMA__PORT=11434
       - POSTGRES__HOST=postgres
       - POSTGRES__PORT=5432
       - LANGFUSE__HOST=http://langfuse-web:3000
@@ -144,10 +147,11 @@ services:
       test: ["CMD", "ollama", "list"]                                                               
       interval: 30s                                                                                 
       timeout: 10s                                                                                  
-      retries: 3                                                                                    
+      retries: 5                                                                                    
       start_period: 30s                                                                             
     networks:                                                                                       
-      - paperalchemy-network                                                                        
+      - paperalchemy-network  
+    restart: unless-stopped                                                                      
                                                                                                     
   # ===========================================                                                     
   # Apache Airflow                                                                                  
@@ -337,7 +341,8 @@ volumes:
   postgres_data:                                                                                    
   redis_data:                                                                                       
   opensearch_data:                                                                                  
-  ollama_data:                                                                                      
+  ollama_data:
+    driver: local                                                                                      
   airflow_logs:                                                                                     
   clickhouse_data:                                                                                  
   langfuse_postgres_data:                                                                           

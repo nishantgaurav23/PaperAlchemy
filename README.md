@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/PostgreSQL-17-blue.svg" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/Airflow-2.10-red.svg" alt="Airflow">
   <img src="https://img.shields.io/badge/Docker-Compose-blue.svg" alt="Docker">
-  <img src="https://img.shields.io/badge/Status-Week%204%20Complete-brightgreen.svg" alt="Status">
+  <img src="https://img.shields.io/badge/Status-Week%205%20Complete-brightgreen.svg" alt="Status">
 </p>
 
 ---
@@ -130,7 +130,7 @@ sequenceDiagram
 | **Week 2** | Data Ingestion Pipeline | ✅ Complete | arXiv API, Docling PDF parser, SQLAlchemy ORM, Repository pattern |
 | **Week 3** | Keyword Search (BM25) | ✅ Complete | OpenSearch indexing, QueryBuilder, Search API, Custom analyzers |
 | **Week 4** | Chunking & Hybrid Search | ✅ Complete | Section-aware chunking, Jina embeddings, RRF fusion, Hybrid search API |
-| **Week 5** | Complete RAG Pipeline | ⬜ Planned | Ollama LLM, Streaming SSE, Gradio interface |
+| **Week 5** | Complete RAG Pipeline | ✅ Complete | Ollama LLM, RAG prompt engineering, SSE streaming, `/ask` + `/stream` endpoints |
 | **Week 6** | Production Monitoring | ⬜ Planned | Langfuse tracing, Redis caching, Cost analysis |
 | **Week 7** | Agentic RAG | ⬜ Planned | LangGraph workflows, Guardrails, Telegram bot |
 
@@ -177,6 +177,7 @@ uv run jupyter lab notebooks/week1/week1_setup.ipynb
 uv run jupyter lab notebooks/week2/week2_arxiv_integration.ipynb
 uv run jupyter lab notebooks/week3/week3_opensearch.ipynb
 uv run jupyter lab notebooks/week4/week4_hybrid_search.ipynb
+uv run jupyter lab notebooks/week5/week5_complete_rag_system.ipynb
 ```
 
 ---
@@ -333,6 +334,47 @@ graph LR
 
 ---
 
+## Week 5: Complete RAG Pipeline ✅
+
+### Learning Objectives
+- Ollama HTTP client for local LLM inference (health check, generate, stream)
+- RAG prompt engineering with structured JSON output and citation extraction
+- Response parsing fallback chain (JSON → regex → plain text)
+- Server-Sent Events (SSE) streaming for real-time token output
+- Factory pattern for service initialization and FastAPI lifespan integration
+- 3-tier configuration: per-request → environment variable → code default
+- Custom exception hierarchy for LLM error handling
+
+### Architecture
+
+```mermaid
+graph LR
+    A[User Query] --> B[FastAPI Router]
+    B --> C[Jina AI]
+    C -->|Query Vector| D[OpenSearch]
+    B -->|BM25 + KNN| D
+    D -->|Top Chunks| E[RAGPromptBuilder]
+    E -->|System Prompt + Context| F[Ollama LLM]
+    F -->|/ask| G[Complete Answer + Sources]
+    F -->|/stream| H[SSE Token Stream]
+
+    style D fill:#fff3e0
+    style F fill:#f3e5f5
+```
+
+**Key Components:**
+- `src/services/ollama/client.py` — Ollama HTTP client (generate, stream, RAG)
+- `src/services/ollama/prompts.py` — RAGPromptBuilder + ResponseParser
+- `src/services/ollama/prompts/rag_system.txt` — System prompt template
+- `src/services/ollama/factory.py` — `make_ollama_client()` factory
+- `src/routers/ask.py` — `/api/v1/ask` (standard) + `/api/v1/stream` (SSE)
+- `src/schemas/api/ask.py` — AskRequest/AskResponse models
+- `src/schemas/ollama.py` — RAGResponse (structured LLM output schema)
+
+**Notebook:** [notebooks/week5/week5_complete_rag_system.ipynb](notebooks/week5/week5_complete_rag_system.ipynb)
+
+---
+
 ## Tech Stack
 
 | Component | Technology | Version | Purpose |
@@ -371,7 +413,9 @@ PaperAlchemy/
 │   ├── schemas/                  # Pydantic validation schemas
 │   │   ├── api/                  # API request/response schemas
 │   │   │   ├── health.py         # ServiceStatus, HealthResponse
-│   │   │   └── search.py         # SearchRequest, HybridSearchRequest, SearchResponse
+│   │   │   ├── search.py         # SearchRequest, HybridSearchRequest, SearchResponse
+│   │   │   └── ask.py            # AskRequest, AskResponse
+│   │   ├── ollama.py             # RAGResponse (structured LLM output)
 │   │   ├── indexing/             # Indexing pipeline schemas
 │   │   │   └── models.py         # ChunkMetadata, TextChunk
 │   │   └── arxiv/                # arXiv paper schemas
@@ -387,20 +431,28 @@ PaperAlchemy/
 │   │   │   ├── text_chunker.py   # Section-aware text chunker
 │   │   │   ├── hybrid_indexer.py # Chunk → embed → index pipeline
 │   │   │   └── factory.py        # Indexing service factory
-│   │   └── opensearch/           # OpenSearch client, query builder, config
-│   │       ├── client.py         # Unified search client (BM25/vector/hybrid)
-│   │       ├── query_builder.py  # Query construction with field boosting
-│   │       ├── index_config.py   # Index mappings + RRF pipeline
-│   │       └── factory.py        # Client factory (cached + fresh)
+│   │   ├── opensearch/           # OpenSearch client, query builder, config
+│   │   │   ├── client.py         # Unified search client (BM25/vector/hybrid)
+│   │   │   ├── query_builder.py  # Query construction with field boosting
+│   │   │   ├── index_config.py   # Index mappings + RRF pipeline
+│   │   │   └── factory.py        # Client factory (cached + fresh)
+│   │   └── ollama/               # Ollama LLM service
+│   │       ├── client.py         # HTTP client (generate, stream, RAG)
+│   │       ├── prompts.py        # RAGPromptBuilder + ResponseParser
+│   │       ├── prompts/          # Prompt templates
+│   │       │   └── rag_system.txt
+│   │       └── factory.py        # make_ollama_client() factory
 │   └── routers/                  # API route handlers
 │       ├── ping.py               # /api/v1/health with service checks
 │       ├── search.py             # /api/v1/search GET + POST
-│       └── hybrid_search.py      # /api/v1/hybrid-search POST
+│       ├── hybrid_search.py      # /api/v1/hybrid-search POST
+│       └── ask.py                # /api/v1/ask + /api/v1/stream (RAG)
 ├── notebooks/                    # Weekly learning notebooks
 │   ├── week1/                    # Infrastructure setup
 │   ├── week2/                    # arXiv integration & PDF parsing
 │   ├── week3/                    # BM25 keyword search
-│   └── week4/                    # Chunking & hybrid search
+│   ├── week4/                    # Chunking & hybrid search
+│   └── week5/                    # Complete RAG pipeline with LLM
 ├── compose.yml                   # Docker services (12 containers)
 ├── Dockerfile                    # Application container
 ├── pyproject.toml                # Python dependencies (UV)

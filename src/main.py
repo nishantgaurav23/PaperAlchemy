@@ -38,8 +38,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config import get_settings
 from src.db.factory import make_database
 from src.routers import ping, search, hybrid_search
-from src.services.opensearch.factory import make_opensearch_client 
+from src.routers.ask import ask_router, stream_router
+from src.services.opensearch.factory import make_opensearch_client
 from src.services.embeddings.factory import make_embeddings_service
+from src.services.ollama.factory import make_ollama_client
 
 # Setup logging
 logging.basicConfig(
@@ -93,11 +95,16 @@ async def lifespan(app: FastAPI):
     # Future weeks will add:                                                                                                     
     # app.state.arxiv_client = make_arxiv_client()                                                                               
     # app.state.pdf_parser = make_pdf_parser_service()                                                                           
-    app.state.embeddings_service = make_embeddings_service() 
-    logger.info("Jina embeddings servie initialized")                                                                  
-    # app.state.ollama_client = make_ollama_client()                                                                             
-    # app.state.langfuse_tracer = make_langfuse_tracer()                                                                         
-    # app.state.cache_client = make_cache_client(settings) 
+    app.state.embeddings_service = make_embeddings_service()
+    logger.info("Jina embeddings service initialized")
+
+    # Initialize Ollama client
+    app.state.ollama_client = make_ollama_client(settings)
+    logger.info(f"Ollama client initialized (model: {settings.ollama.default_model}, url: {settings.ollama.url})")
+
+    # Future weeks will add:
+    # app.state.langfuse_tracer = make_langfuse_tracer()
+    # app.state.cache_client = make_cache_client(settings)
 
     logger.info("PaperAlchemy API ready")
     yield
@@ -126,6 +133,8 @@ app.add_middleware(
 app.include_router(hybrid_search.router, prefix="/api/v1")
 app.include_router(ping.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
+app.include_router(ask_router, prefix="/api/v1")
+app.include_router(stream_router, prefix="/api/v1")
                                                                                                     
                                                                                                     
 @app.get("/")                                                                                      
