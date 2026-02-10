@@ -26,12 +26,13 @@ services:
       - .env                                                                                        
     environment:                                                                                    
       - OPENSEARCH__HOST=http://opensearch:9200
-      - OLLAMA__HOST=ollama
+      - OLLAMA__HOST=host.docker.internal
       - OLLAMA__PORT=11434
       - POSTGRES__HOST=postgres
       - POSTGRES__PORT=5432
       - LANGFUSE__HOST=http://langfuse-web:3000
-      - REDIS__HOST=redis                                                                           
+      - REDIS__HOST=redis
+      - REDIS__PORT=6379
     networks:                                                                                       
       - paperalchemy-network                                                                        
                                                                                                     

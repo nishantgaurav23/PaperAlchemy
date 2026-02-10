@@ -114,7 +114,7 @@ class OllamaSettings(BaseSettings):
 
     # Generation defaults (all overridable per-request)                                                                          
     default_model: str = "llama3.2:1b" # Ollama model name (e.g., "llama3.2:1b")
-    default_timeout: int = 120 # Seconds; LLM generation can b slow
+    default_timeout: int = 300 # Seconds; LLM generation can b slow
     default_temperature: float = 0.7 # 0.0=deterministic, .0=very random
     default_top_p: float = 0.9 # Nucleus sampling: top 90% probability mass                                                                       
                                                                                                     
@@ -124,23 +124,35 @@ class OllamaSettings(BaseSettings):
         return f"http://{self.host}:{self.port}"                                                   
                                                                                                     
                                                                                                     
-class RedisSettings(BaseSettings):                                                                 
-    """Redis cache settings."""                                                                    
+class RedisSettings(BaseSettings):
+    """Redis cache settings."""
+
+    model_config = SettingsConfigDict(env_prefix="REDIS__")
+
+    host: str = "localhost"
+    port: int = 6379
+    password: str = ""
+    db: int = 0
+    ttl_hours: int = 24
+    socket_timeout: int = 5
+    socket_connect_timeout: int = 5
+    decode_responses: bool = True                                                                               
                                                                                                     
-    model_config = SettingsConfigDict(env_prefix="REDIS__")                                        
                                                                                                     
-    host: str = "localhost"                                                                        
-    port: int = 6379                                                                               
-                                                                                                    
-                                                                                                    
-class LangfuseSettings(BaseSettings):                                                              
-    """Langfuse monitoring settings."""                                                            
-                                                                                                    
-    model_config = SettingsConfigDict(env_prefix="LANGFUSE__")                                     
-                                                                                                    
-    public_key: str = ""                                                                           
-    secret_key: str = ""                                                                           
-    host: str = "http://localhost:3000"                                                            
+class LangfuseSettings(BaseSettings):
+    """Langfuse monitoring settings."""
+
+    model_config = SettingsConfigDict(env_prefix="LANGFUSE__")
+
+    public_key: str = ""
+    secret_key: str = ""
+    host: str = "http://localhost:3000"
+    enabled: bool = False
+    flush_at: int = 15
+    flush_interval: float = 10.0
+    debug: bool = False
+    max_retries: int = 3
+    timeout: int = 10                                                            
                                                                                                     
                                                                                                     
 class TelegramSettings(BaseSettings):                                                              

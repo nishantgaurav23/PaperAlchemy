@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/PostgreSQL-17-blue.svg" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/Airflow-2.10-red.svg" alt="Airflow">
   <img src="https://img.shields.io/badge/Docker-Compose-blue.svg" alt="Docker">
-  <img src="https://img.shields.io/badge/Status-Week%205%20Complete-brightgreen.svg" alt="Status">
+  <img src="https://img.shields.io/badge/Status-Week%206%20Complete-brightgreen.svg" alt="Status">
 </p>
 
 ---
@@ -118,6 +118,11 @@ sequenceDiagram
     API->>LLM: Context + Question
     LLM-->>API: Generated answer
     API-->>U: Answer + sources
+
+    Note over U,LLM: Week 6+: Caching & Tracing
+    U->>API: POST /api/v1/ask (repeated)
+    API->>API: Redis cache check
+    API-->>U: Cached answer (~50ms)
 ```
 
 ---
@@ -131,7 +136,7 @@ sequenceDiagram
 | **Week 3** | Keyword Search (BM25) | ✅ Complete | OpenSearch indexing, QueryBuilder, Search API, Custom analyzers |
 | **Week 4** | Chunking & Hybrid Search | ✅ Complete | Section-aware chunking, Jina embeddings, RRF fusion, Hybrid search API |
 | **Week 5** | Complete RAG Pipeline | ✅ Complete | Ollama LLM, RAG prompt engineering, SSE streaming, `/ask` + `/stream` endpoints |
-| **Week 6** | Production Monitoring | ⬜ Planned | Langfuse tracing, Redis caching, Cost analysis |
+| **Week 6** | Production Monitoring & Caching | ✅ Complete | Redis caching (150-400x speedup), Langfuse tracing, graceful degradation |
 | **Week 7** | Agentic RAG | ⬜ Planned | LangGraph workflows, Guardrails, Telegram bot |
 
 ---
@@ -178,6 +183,7 @@ uv run jupyter lab notebooks/week2/week2_arxiv_integration.ipynb
 uv run jupyter lab notebooks/week3/week3_opensearch.ipynb
 uv run jupyter lab notebooks/week4/week4_hybrid_search.ipynb
 uv run jupyter lab notebooks/week5/week5_complete_rag_system.ipynb
+uv run jupyter lab notebooks/week6/week6_caching_and_tracing.ipynb
 ```
 
 ---
@@ -375,6 +381,72 @@ graph LR
 
 ---
 
+## Week 6: Production Monitoring & Caching ✅
+
+### Learning Objectives
+- Redis exact-match caching with SHA256 key generation and configurable TTL
+- Langfuse tracing for per-stage RAG pipeline observability (embed, search, prompt, generate)
+- Graceful degradation: cache/tracing failures never break the pipeline
+- Factory pattern for Redis and Langfuse client initialization
+- Cache-aware endpoints with early return on hit (150-400x speedup)
+
+### Architecture
+
+```mermaid
+graph LR
+    A[User Query] --> B[FastAPI Router]
+    B --> C{Redis Cache}
+    C -->|HIT ~50ms| D[Cached AskResponse]
+    C -->|MISS| E[Jina AI]
+    E -->|Query Vector| F[OpenSearch]
+    B -->|BM25 + KNN| F
+    F -->|Top Chunks| G[RAGPromptBuilder]
+    G --> H[Ollama LLM]
+    H --> I[AskResponse]
+    I --> J[Store in Redis]
+
+    K[Langfuse] -.->|trace| E
+    K -.->|trace| F
+    K -.->|trace| G
+    K -.->|trace| H
+
+    style C fill:#fce4ec
+    style F fill:#fff3e0
+    style H fill:#f3e5f5
+    style K fill:#e8eaf6
+```
+
+```
+User Question
+     │
+     ▼
+Cache Check ──[HIT]──► Instant Response (~50ms)
+     │ [MISS]
+     ▼
+Embed (Jina) → Search (OpenSearch) → Prompt → Generate (Ollama)
+     │                    │                         │
+     │         [Langfuse spans per stage]           │
+     ▼                                              ▼
+Store in Redis ◄─────────────────────── AskResponse
+     │
+     ▼
+Return to User
+```
+
+**Key Components:**
+- `src/services/cache/client.py` — CacheClient with SHA256 key generation, async GET/SET
+- `src/services/cache/factory.py` — `make_cache_client()` with Redis ping test
+- `src/services/langfuse/client.py` — LangfuseTracer wrapping Langfuse SDK
+- `src/services/langfuse/tracer.py` — RAGTracer with per-stage tracing methods
+- `src/services/langfuse/factory.py` — `make_langfuse_tracer()` with graceful disabled mode
+- `src/routers/ask.py` — Cache check/store + Langfuse spans in `/ask` and `/stream`
+- `src/config.py` — RedisSettings (TTL, timeouts) + LangfuseSettings (keys, flush config)
+- `src/dependency.py` — CacheDep + LangfuseDep type aliases
+
+**Notebook:** [notebooks/week6/week6_caching_and_tracing.ipynb](notebooks/week6/week6_caching_and_tracing.ipynb)
+
+---
+
 ## Tech Stack
 
 | Component | Technology | Version | Purpose |
@@ -436,12 +508,19 @@ PaperAlchemy/
 │   │   │   ├── query_builder.py  # Query construction with field boosting
 │   │   │   ├── index_config.py   # Index mappings + RRF pipeline
 │   │   │   └── factory.py        # Client factory (cached + fresh)
-│   │   └── ollama/               # Ollama LLM service
-│   │       ├── client.py         # HTTP client (generate, stream, RAG)
-│   │       ├── prompts.py        # RAGPromptBuilder + ResponseParser
-│   │       ├── prompts/          # Prompt templates
-│   │       │   └── rag_system.txt
-│   │       └── factory.py        # make_ollama_client() factory
+│   │   ├── ollama/               # Ollama LLM service
+│   │   │   ├── client.py         # HTTP client (generate, stream, RAG)
+│   │   │   ├── prompts.py        # RAGPromptBuilder + ResponseParser
+│   │   │   ├── prompts/          # Prompt templates
+│   │   │   │   └── rag_system.txt
+│   │   │   └── factory.py        # make_ollama_client() factory
+│   │   ├── cache/                # Redis caching service
+│   │   │   ├── client.py         # CacheClient (SHA256 keys, async GET/SET)
+│   │   │   └── factory.py        # make_cache_client() + make_redis_client()
+│   │   └── langfuse/             # Langfuse tracing service
+│   │       ├── client.py         # LangfuseTracer (SDK wrapper)
+│   │       ├── tracer.py         # RAGTracer (per-stage tracing)
+│   │       └── factory.py        # make_langfuse_tracer()
 │   └── routers/                  # API route handlers
 │       ├── ping.py               # /api/v1/health with service checks
 │       ├── search.py             # /api/v1/search GET + POST
@@ -452,7 +531,8 @@ PaperAlchemy/
 │   ├── week2/                    # arXiv integration & PDF parsing
 │   ├── week3/                    # BM25 keyword search
 │   ├── week4/                    # Chunking & hybrid search
-│   └── week5/                    # Complete RAG pipeline with LLM
+│   ├── week5/                    # Complete RAG pipeline with LLM
+│   └── week6/                    # Redis caching & Langfuse tracing
 ├── compose.yml                   # Docker services (12 containers)
 ├── Dockerfile                    # Application container
 ├── pyproject.toml                # Python dependencies (UV)

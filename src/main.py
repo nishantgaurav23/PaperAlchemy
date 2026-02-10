@@ -42,6 +42,8 @@ from src.routers.ask import ask_router, stream_router
 from src.services.opensearch.factory import make_opensearch_client
 from src.services.embeddings.factory import make_embeddings_service
 from src.services.ollama.factory import make_ollama_client
+from src.services.langfuse.factory import make_langfuse_tracer
+from src.services.cache.factory import make_cache_client
 
 # Setup logging
 logging.basicConfig(
@@ -102,14 +104,22 @@ async def lifespan(app: FastAPI):
     app.state.ollama_client = make_ollama_client(settings)
     logger.info(f"Ollama client initialized (model: {settings.ollama.default_model}, url: {settings.ollama.url})")
 
-    # Future weeks will add:
-    # app.state.langfuse_tracer = make_langfuse_tracer()
-    # app.state.cache_client = make_cache_client(settings)
+    # Initialize Langfuse tracer
+    app.state.langfuse_tracer = make_langfuse_tracer(settings)
+    logger.info(f"Langfuse tracer intialized (enabled={settings.langfuse.enabled})")
+    
+    # Initalize Redis cache client
+    app.state.cache_client = await make_cache_client(settings)
+    logger.info(f"Cache client initialized (available={app.state.cache_client is not None})")
 
     logger.info("PaperAlchemy API ready")
     yield
 
     # Cleanup
+    if app.state.langfuse_tracer:
+        app.state.langfuse_tracer.shutdown()
+    if app.state.cache_client and app.state.cache_client._redis:
+        await app.state.cache_client._redis.aclose()
     database.teardown()
     logger.info("PaperAlchemy API shutdown completed.")
                                                                                                     
