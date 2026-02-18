@@ -47,7 +47,7 @@ Why these defaults:
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -107,22 +107,25 @@ class GraphConfig(BaseModel):
     # Stored so nodes can access environment info (e.g., for Langfuse metadata).
     # Not serialized in API responses.
     settings: Optional[Settings] = Field(
-        default=None,
+        default_factory=get_settings,
         exclude=True,
-        description="Application settings refrence (internal use)",
+        description="Application settings reference (internal use)",
     )
     model_config = {"arbitrary_types_allowed": True}
 
-    def __init__(self, **data):
-        """Initialize with application settings if not provided."""
-        if "settings" not in data or data["Settings"] is None:
-            data["Settings"] = get_settings()
+    def model_post_init(self, __context: Any) -> None:
+        """Post-initialization: inherit model from settings if not overridden.
 
-        # Use Ollama default model from settings if not explicitly provided
-        if "model" not in data:
-            data["model"] = data["Settings"].ollama.default_model
+        Runs after Pydantic validates all fields. If model still has the
+        hardcoded default, replaces it with the value from application
+        settings (e.g., OLLAMA_DEFAULT_MODEL env var).
 
-        super().__init__(**data)
+        Uses model_post_init instead of __init__ because Pydantic v2
+        discourages overriding __init__ — it bypasses validation.
+        """
+        if self.model == "llama3.2:1b" and self.settings is not None:
+            object.__setattr__(self, "model", self.settings.ollama.default_model)
+
         logger.info(
             f"GraphConfig initialized: model={self.model}, top_k={self.top_k}, "
             f"hybrid={self.use_hybrid}, max_attempts={self.max_retrieval_attempts}, "

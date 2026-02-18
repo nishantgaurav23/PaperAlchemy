@@ -137,4 +137,4 @@ class ReasoningStep(BaseModel):
 
     step_name: str = Field(description="Name of the reasoning step")
     description: str = Field(description="Human-readable description")
-    metadata: Dict[str, any] = Field(default_factory=dict, description="Step metadata")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Step metadata")

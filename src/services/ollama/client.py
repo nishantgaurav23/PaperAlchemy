@@ -82,6 +82,7 @@ import httpx
 from src.config import Settings
 from src.exceptions import OllamaConnectionError, OllamaException, OllamaTimeoutError
 from src.services.ollama.prompts import RAGPromptBuilder, ResponseParser
+from langchain_ollama import ChatOllama
 
 logger = logging.getLogger(__name__)
 
@@ -434,5 +435,120 @@ class OllamaClient:
         except Exception as e:
             logger.error(f"Error generating streaming RAG answer: {e}")
             raise OllamaException(f"Failed to generate streaming RAG answer: {e}")
+        
+    """
+    Add get_lanchain_model() method.
+    What is needed:
+        Add a single new method get_langchain_model() to the exisiting OllamaClient class. This
+        method returns a ChatOllama instance from lanchain-ollama - the LangChain-compatiable wrapper
+        around Ollama.
+
+    Why it is eeded:
+        Every agent node (guardrail, grading, rewrite, generate) needs a LangChain-compatible LLM
+        object because:
+
+        1. Structured output - ChatOllama supports .with_structured_output(PydanticModel) which forces the
+        LLM to return valid JSON matching a Pydantic schema. Without this, you'd need to manually parse
+        free-text LLM responses and handle malformed JSON.
+        2. LangGraph integration - LangGraph's ToolNode expects LangChain message types (AIMessage, ToolMessage).
+        ChatOllama.ainvoke() returns these natively. Raw httpx calls return plain dicts.
+        3. Per-call temperarire - Guardrail/grading need temperatur=0.0 (deterministic, rewrite needs 0.3),
+        answer generation needs 0.7. get_lanchain_mode(temperatire=X) creates a correctly-configured instance
+        each time.
+        4. Single responsibility - OllamaClient already owns the Ollama connection (base_url, timeout). Addint get_langchain_model()
+        here keeps the Ollama configuration in one place instead of scattering ChatOllama(base_utl=...) across 6 node
+        files.
+
+    How it helps:
+
+        Node Calls:
+            llm = context.ollama_client.get_lanchain_model(
+                model="llama3.2:1b", temperature=0.0
+            )
+            structuctured_llm = llm.with_structured_output(GuardrailScoring)
+            result = await structured_llm.invoke(prompt)
+            # result is a GuardrailScoring instance - no JSON parsing needed
+
+    Function details : 
+
+        ┌───────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+        │    Aspect     │                                                 Detail                                                 │
+        ├───────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+        │ Parameters    │ model (optional str) — which Ollama model to use; temperature (optional float) — controls randomness   │
+        ├───────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+        │ Returns       │ ChatOllama — LangChain chat model wrapping Ollama's /api/chat endpoint                                 │
+        ├───────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+        │ Side effects  │ None — creates a lightweight object, no HTTP call until .ainvoke()                                     │
+        ├───────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+        │ Thread safety │ Each call returns a new instance, safe for concurrent use across nodes                                 │
+        ├───────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+        │ Timeout       │ Reuses self.timeout.read from the existing httpx.Timeout — ensures consistency with other Ollama calls │
+        └───────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+    Why ChatOllama and not raw generate():
+
+        ┌────────────────────┬───────────────────────────┬───────────────────────────────────────────────┐
+        │      Feature       │      Raw generate()       │                  ChatOllama                   │
+        ├────────────────────┼───────────────────────────┼───────────────────────────────────────────────┤
+        │ Structured output  │ Manual JSON parse + retry │ .with_structured_output(Pydantic) — automatic │
+        ├────────────────────┼───────────────────────────┼───────────────────────────────────────────────┤
+        │ LangGraph messages │ Returns plain dict        │ Returns AIMessage natively                    │
+        ├────────────────────┼───────────────────────────┼───────────────────────────────────────────────┤
+        │ Tool calling       │ Not supported             │ Built-in bind_tools() support                 │
+        ├────────────────────┼───────────────────────────┼───────────────────────────────────────────────┤
+        │ Error on bad JSON  │ Silent failure            │ Raises OutputParserException                  │
+        └────────────────────┴───────────────────────────┴───────────────────────────────────────────────┘
+
+    """
+
+    def get_langchain_model(
+            self,
+            model: Optional[str] = None,
+            temperature: Optional[float] = None,
+    ) -> ChatOllama:
+        """Return a LangChain-compatible ChatOllama instance
+
+        What it does:
+            Creates a ChatOllama object pre-configured with this client's
+            base_utl and timeout. Nodes call this instead of constructing
+            ChatOllama directly, keeping Ollama config centralized.
+
+        Why it is needed:
+            LangGraph agent nodes require LangChain-compatible LLM objects
+            for two critical features:
+            1. .with_structured_output(PydanticModel) - forces JSON schema
+                compliance so guardrail//grading outputs parse reliably.
+            2. .ainvoke() returns LangChain messages types (AIMessage) which 
+                LangGraph's ToolNode and message routing expect.
+
+        How it helps:
+            - Nodes get a ready-to-use LLM one call
+            - Temperature is set per-call (0.0 for routing, 0.7 for answers)
+            - Conection config (base_url, timeout) stays in OllamaClient
+            - No ChatOllama imports needed in any node file
+
+        Args:
+            model: Ollama model name. Defaults to self.default_model.
+            temperature: Generation temperature. Defaults to 0.7
+                - 0.0 for deterministic routing (guardrail, grading)
+                - 0.3 for focused rewriting
+                - 0.7 for natural answer generation
+
+        Returns:
+            ChatOllama instance ready for .ainvoke() or .with_structured_output()
+
+        Example:
+            llm = ollama_client.get_langchain_model(model="llama3.2:1b", temperature=0.0)
+            structured = llm.with_structured_output(GuardrailScoring)
+            result = await structured.ainvoke("Score this query...)
+
+        
+        """
+        return ChatOllama(
+            base_url=self.base_url,
+            model=model or self.default_model,
+            temperature=temperature if temperature is not None else 0.7,
+            request_timeout=self.timeout.read
+        )
 
 

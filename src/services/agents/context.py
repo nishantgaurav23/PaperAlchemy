@@ -130,6 +130,6 @@ class Context:
     # documents were found (even if grading said irrelevant)
     # guardrail_threshold: Minimum score (0-100) from guardrail node
     # to proceed with retrieval. Below this -> out_of_scope node.
-    max_retrieval_attempt: int = 3
+    max_retrieval_attempts: int = 3
     guardrail_threshold: int = 40
 
