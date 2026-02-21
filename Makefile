@@ -1,4 +1,4 @@
-.PHONY: help start stop restart status logs health setup format lint test test-cov clean           
+.PHONY: help start stop restart status logs health setup format lint test test-cov clean gradio           
                                                                                                      
 # Default target                                                                                   
 help:                                                                                              
@@ -14,7 +14,8 @@ help:
 	@echo "make format     - Format code with ruff"                                              
 	@echo "make lint       - Lint and type check"                                                
 	@echo "make test       - Run tests"                                                          
-	@echo "make test-cov   - Run tests with coverage"                                            
+	@echo "make test-cov   - Run tests with coverage"
+	@echo "make gradio     - Start Gradio web UI (http://localhost:7861)"
 	@echo "make clean      - Clean up everything"                                                
 																									
 # Docker commands                                                                                  
@@ -62,7 +63,11 @@ test:
 test-cov:                                                                                          
 	uv run pytest tests/ -v --cov=src --cov-report=html                                          
 																									
-# Cleanup                                                                                          
+# Gradio UI
+gradio:
+	uv run python gradio_launcher.py
+
+# Cleanup
 clean:                                                                                             
 	docker compose down -v                                                                       
 	rm -rf __pycache__ .pytest_cache .coverage htmlcov .mypy_cache                               
