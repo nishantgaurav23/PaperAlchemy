@@ -321,10 +321,12 @@ services:
       REDIS_HOST: langfuse-redis                                                                    
       REDIS_PORT: 6379                                                                              
       REDIS_AUTH: langfuse_redis_password                                                           
-      LANGFUSE_INIT_ORG_NAME: "PaperAlchemy"                                                        
-      LANGFUSE_INIT_PROJECT_NAME: "Academic RAG"                                                    
-      LANGFUSE_INIT_USER_EMAIL: "admin@paperalchemy.com"                                            
-      LANGFUSE_INIT_USER_NAME: "Admin"                                                              
+      LANGFUSE_INIT_ORG_ID: "00000000-0000-0000-0000-000000000001"
+      LANGFUSE_INIT_ORG_NAME: "PaperAlchemy"
+      LANGFUSE_INIT_PROJECT_ID: "00000000-0000-0000-0000-000000000002"
+      LANGFUSE_INIT_PROJECT_NAME: "Academic RAG"
+      LANGFUSE_INIT_USER_EMAIL: "admin@paperalchemy.com"
+      LANGFUSE_INIT_USER_NAME: "Admin"
       LANGFUSE_INIT_USER_PASSWORD: "admin123"                                                       
     healthcheck:                                                                                    
       test: ["CMD-SHELL", "curl -f http://localhost:3000/api/public/health || exit 1"]              
