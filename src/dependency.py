@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from src.config import Settings
 from src.db.database import Database
+from src.services.agents.agentic_rag import AgenticRAGService
 from src.services.opensearch.client import OpenSearchClient
 
 # Future week dependencies (uncomment as services are added)
@@ -92,6 +93,13 @@ def get_cache_client(request: Request) -> Optional[CacheClient]:
     """
     return getattr(request.app.state, "cache_client", None)
 
+def get_agentic_rag_service(request: Request) -> AgenticRAGService:
+    """Get AgenticRAGService from the request state.
+    Set during lifespan startup via make_agentic_rag_service().
+    Contains the compiled LangGraph workflow for agentic RAG.
+    """
+    return request.app.state.agentic_rag_service
+
 
 
 
@@ -107,3 +115,4 @@ EmbeddingsDep = Annotated[JinaEmbeddingsClient, Depends(get_embeddings_service)]
 OllamaDep = Annotated[OllamaClient, Depends(get_ollama_client)]
 LangfuseDep = Annotated[LangfuseTracer, Depends(get_langfuse_tracer)]
 CacheDep = Annotated[Optional[CacheClient], Depends(get_cache_client)]
+AgenticRAGDep = Annotated[AgenticRAGService, Depends(get_agentic_rag_service)]

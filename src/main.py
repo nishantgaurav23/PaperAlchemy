@@ -39,11 +39,13 @@ from src.config import get_settings
 from src.db.factory import make_database
 from src.routers import ping, search, hybrid_search
 from src.routers.ask import ask_router, stream_router
+from src.routers.agentic import agentic_router
 from src.services.opensearch.factory import make_opensearch_client
 from src.services.embeddings.factory import make_embeddings_service
 from src.services.ollama.factory import make_ollama_client
 from src.services.langfuse.factory import make_langfuse_tracer
 from src.services.cache.factory import make_cache_client
+from src.services.agents.factory import make_agentic_rag_service
 
 # Setup logging
 logging.basicConfig(
@@ -112,6 +114,15 @@ async def lifespan(app: FastAPI):
     app.state.cache_client = await make_cache_client(settings)
     logger.info(f"Cache client initialized (available={app.state.cache_client is not None})")
 
+    # Initialise Agentic RAG service (compiles LangGraph workflow)
+    app.state.agentic_rag_service = make_agentic_rag_service(
+        opensearch_client=opeansearch_client,
+        ollama_client=app.state.ollama_client,
+        embeddings_client=app.state.embeddings_service,
+        langfuse_tracer=app.state.langfuse_tracer,
+    )
+    logger.info("Agentic RAG service initialized (LangGraph graph compiled)")
+
     logger.info("PaperAlchemy API ready")
     yield
 
@@ -145,6 +156,7 @@ app.include_router(ping.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
 app.include_router(ask_router, prefix="/api/v1")
 app.include_router(stream_router, prefix="/api/v1")
+app.include_router(agentic_router)
                                                                                                     
                                                                                                     
 @app.get("/")                                                                                      
