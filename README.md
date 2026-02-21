@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/PostgreSQL-17-blue.svg" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/Airflow-2.10-red.svg" alt="Airflow">
   <img src="https://img.shields.io/badge/Docker-Compose-blue.svg" alt="Docker">
-  <img src="https://img.shields.io/badge/Status-Week%206%20Complete-brightgreen.svg" alt="Status">
+  <img src="https://img.shields.io/badge/Status-Week%207%20Complete-brightgreen.svg" alt="Status">
 </p>
 
 ---
@@ -137,7 +137,7 @@ sequenceDiagram
 | **Week 4** | Chunking & Hybrid Search | ✅ Complete | Section-aware chunking, Jina embeddings, RRF fusion, Hybrid search API |
 | **Week 5** | Complete RAG Pipeline | ✅ Complete | Ollama LLM, RAG prompt engineering, SSE streaming, `/ask` + `/stream` endpoints |
 | **Week 6** | Production Monitoring & Caching | ✅ Complete | Redis caching (150-400x speedup), Langfuse tracing, graceful degradation |
-| **Week 7** | Agentic RAG | ⬜ Planned | LangGraph workflows, Guardrails, Telegram bot |
+| **Week 7** | Agentic RAG | ✅ Complete | LangGraph StateGraph, Guardrail node, Adaptive retrieval, Gradio UI |
 
 ---
 
@@ -447,6 +447,60 @@ Return to User
 
 ---
 
+## Week 7: Agentic RAG ✅
+
+### Learning Objectives
+- LangGraph `StateGraph` with typed context injection (`Runtime[Context]`) for dependency-free nodes
+- Guardrail node: domain scoring via LLM to reject off-topic queries before retrieval
+- Adaptive retrieval: grade documents → rewrite query → retry (up to 3 attempts)
+- Tool-calling pattern: `retrieve_papers` as a LangChain tool executed by `ToolNode`
+- `tools_condition` routing: LLM decides whether to call a tool or terminate
+- Gradio UI: two-tab interface for Standard RAG (streaming) and Agentic RAG (blocking)
+
+### LangGraph Pipeline
+
+```mermaid
+graph TD
+    START --> guardrail_node
+    guardrail_node -->|score >= 40| retrieve_node
+    guardrail_node -->|score < 40| out_of_scope_node
+    retrieve_node -->|tool_call| tool_retrieve
+    retrieve_node -->|no tool_call| END
+    tool_retrieve --> grade_documents_node
+    grade_documents_node -->|relevant| generate_answer_node
+    grade_documents_node -->|irrelevant & attempts < 3| rewrite_query_node
+    grade_documents_node -->|irrelevant & max attempts| generate_answer_node
+    rewrite_query_node --> retrieve_node
+    generate_answer_node --> END
+    out_of_scope_node --> END
+
+    style guardrail_node fill:#fce4ec
+    style grade_documents_node fill:#e8f5e9
+    style generate_answer_node fill:#f3e5f5
+```
+
+**Key Components:**
+- `src/services/agents/agentic_rag.py` — `AgenticRAGService`: compiles graph, runs workflow, extracts sources
+- `src/services/agents/factory.py` — `make_agentic_rag_service()` factory
+- `src/services/agents/state.py` — `AgentState` (TypedDict) + `Context` (typed DI container)
+- `src/services/agents/models.py` — `SourceItem`, `ReasoningStep`, `ToolArtefact`
+- `src/services/agents/config.py` — `GraphConfig` (top_k, use_hybrid, thresholds)
+- `src/services/agents/tools.py` — `retrieve_papers` LangChain tool
+- `src/services/agents/prompts.py` — Prompt templates for all 4 LLM-calling nodes
+- `src/services/agents/nodes/guardrail_node.py` — Domain scoring (reject non-CS/AI queries)
+- `src/services/agents/nodes/retrieve_node.py` — Calls `retrieve_papers` tool via LLM tool-call
+- `src/services/agents/nodes/grade_documents_node.py` — Binary relevance grading per chunk
+- `src/services/agents/nodes/rewrite_query_node.py` — Query rewriting for retry
+- `src/services/agents/nodes/generate_answer_node.py` — Final answer generation with citations
+- `src/services/agents/nodes/out_of_scope_node.py` — Polite rejection for off-topic queries
+- `src/services/agents/nodes/utils.py` — Shared message-parsing helpers across all nodes
+- `src/routers/agentic.py` — `POST /api/v1/ask-agentic` endpoint
+- `src/schemas/api/agentic.py` — `AgenticAskRequest` / `AgenticAskResponse`
+- `src/gradio_app.py` — Gradio Blocks UI (Standard RAG + Agentic RAG tabs)
+- `gradio_launcher.py` — Root-level launcher (`make gradio`)
+
+---
+
 ## Tech Stack
 
 | Component | Technology | Version | Purpose |
@@ -517,22 +571,42 @@ PaperAlchemy/
 │   │   ├── cache/                # Redis caching service
 │   │   │   ├── client.py         # CacheClient (SHA256 keys, async GET/SET)
 │   │   │   └── factory.py        # make_cache_client() + make_redis_client()
-│   │   └── langfuse/             # Langfuse tracing service
-│   │       ├── client.py         # LangfuseTracer (SDK wrapper)
-│   │       ├── tracer.py         # RAGTracer (per-stage tracing)
-│   │       └── factory.py        # make_langfuse_tracer()
+│   │   ├── langfuse/             # Langfuse tracing service
+│   │   │   ├── client.py         # LangfuseTracer (SDK wrapper)
+│   │   │   ├── tracer.py         # RAGTracer (per-stage tracing)
+│   │   │   └── factory.py        # make_langfuse_tracer()
+│   │   └── agents/               # Agentic RAG (Week 7)
+│   │       ├── agentic_rag.py    # AgenticRAGService (LangGraph orchestrator)
+│   │       ├── factory.py        # make_agentic_rag_service()
+│   │       ├── state.py          # AgentState TypedDict + Context DI container
+│   │       ├── models.py         # SourceItem, ReasoningStep, ToolArtefact
+│   │       ├── config.py         # GraphConfig (top_k, thresholds)
+│   │       ├── tools.py          # retrieve_papers LangChain tool
+│   │       ├── prompts.py        # Prompt templates for all nodes
+│   │       └── nodes/            # Individual LangGraph nodes
+│   │           ├── guardrail_node.py     # Domain scoring + reject off-topic
+│   │           ├── retrieve_node.py      # Tool-calling retrieval node
+│   │           ├── grade_documents_node.py # Binary relevance grading
+│   │           ├── rewrite_query_node.py   # Query rewriting for retry
+│   │           ├── generate_answer_node.py # Final answer generation
+│   │           ├── out_of_scope_node.py    # Polite rejection node
+│   │           └── utils.py              # Shared message-parsing helpers
+│   ├── gradio_app.py             # Gradio UI (Standard RAG + Agentic RAG tabs)
 │   └── routers/                  # API route handlers
 │       ├── ping.py               # /api/v1/health with service checks
 │       ├── search.py             # /api/v1/search GET + POST
 │       ├── hybrid_search.py      # /api/v1/hybrid-search POST
-│       └── ask.py                # /api/v1/ask + /api/v1/stream (RAG)
+│       ├── ask.py                # /api/v1/ask + /api/v1/stream (RAG)
+│       └── agentic.py            # /api/v1/ask-agentic (Agentic RAG)
 ├── notebooks/                    # Weekly learning notebooks
 │   ├── week1/                    # Infrastructure setup
 │   ├── week2/                    # arXiv integration & PDF parsing
 │   ├── week3/                    # BM25 keyword search
 │   ├── week4/                    # Chunking & hybrid search
 │   ├── week5/                    # Complete RAG pipeline with LLM
-│   └── week6/                    # Redis caching & Langfuse tracing
+│   ├── week6/                    # Redis caching & Langfuse tracing
+│   └── week7/                    # Agentic RAG with LangGraph
+├── gradio_launcher.py            # Gradio UI launcher (make gradio)
 ├── compose.yml                   # Docker services (12 containers)
 ├── Dockerfile                    # Application container
 ├── pyproject.toml                # Python dependencies (UV)
@@ -545,6 +619,7 @@ PaperAlchemy/
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
+| **Gradio UI** | http://localhost:7861 | `make gradio` |
 | **FastAPI Docs** | http://localhost:8000/docs | — |
 | **FastAPI Health** | http://localhost:8000/health | — |
 | **API Health (detailed)** | http://localhost:8000/api/v1/health | — |
@@ -569,7 +644,7 @@ PaperAlchemy/
 | `/api/v1/hybrid-search` | POST | Hybrid BM25 + vector search | 4 |
 | `/api/v1/ask` | POST | RAG question answering | 5 |
 | `/api/v1/stream` | POST | Streaming RAG responses | 5 |
-| `/api/v1/agentic-ask` | POST | Agentic RAG with LangGraph | 7 |
+| `/api/v1/ask-agentic` | POST | Agentic RAG with LangGraph | 7 |
 
 **Interactive API docs:** http://localhost:8000/docs
 
@@ -642,6 +717,7 @@ make stop        # Stop all services
 make restart     # Restart all services
 make health      # Check service health
 make logs        # View API logs
+make gradio      # Start Gradio web UI (http://localhost:7861)
 make test        # Run test suite
 make clean       # Remove containers and volumes
 ```

@@ -41,8 +41,7 @@ health:
 	@echo "\nChecking PostgreSQL..."                                                             
 	@docker compose exec -T postgres pg_isready -U paperalchemy || echo "PostgreSQL not ready"   
 	@echo "\nChecking OpenSearch..."                                                             
-	@curl -sk https://localhost:9200 -u admin:MyS3cureP@ssw0rd! | head -5 || echo "OpenSearch not
-running"                                                                                           
+	@curl -sk https://localhost:9200 -u admin:MyS3cureP@ssw0rd! | head -5 || echo "OpenSearch not running"
 	@echo "\nChecking Redis..."                                                                  
 	@docker compose exec -T redis redis-cli ping || echo "Redis not running"                     
 																									
