@@ -252,6 +252,7 @@ def extract_sources_from_tool_messages(messages: List[AnyMessage]) -> List[Sourc
                         relevance_score=float(metadata.get("score", 0.0))
                     )
                 )
+                
 
         except (json.JSONDecodeError, TypeError, ValueError) as e:
             logger.warning(f"Could not parse ToolMessage content as source: {e}")
@@ -311,8 +312,10 @@ def extract_tool_artefacts(messages: List[AnyMessage]) -> List[ToolArtefact]:
                 tool_name=getattr(msg, "name", "unknown"),
                 tool_call_id=getattr(msg, "tool_call_id", ""),
                 content=msg.content,
-                metadata={},
-            )
+                metadata={}
+
+
+                )
         )
     return artefacts
 

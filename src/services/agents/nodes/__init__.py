@@ -98,6 +98,38 @@ Why the import order is intentional:
 
 Note: continue_after_guardrail is synchronous — LangGraph calls conditional edge functions synchronously to decide routing.
 All node functions are async because they call await llm.ainvoke(...) or await embeddings_client.embed_query(...).
+
+________________________________________________________________________________________________________________
+Execution trace
+
+state = {
+    messages: [HumanMessage("How does BERT work?")],
+    retrieval_attempts: 0,
+    original_query: None,
+}
+
+Step 1: question = "How does BERT work?"
+Step 2: current_attempts = 0, max_attempts = 3
+Step 3: original_query is None → updates["original_query"] = "How does BERT work?"
+Step 4: 0 < 3 → normal path
+Step 5: new_attempt_count = 1
+Step 6: updates["retrieval_attempts"] = 1
+Step 7: updates["messages"] = [AIMessage(content="", tool_calls=[{
+            "id": "retrieve_1",
+            "name": "retrieve_papers",
+            "args": {"query": "How does BERT work?"}
+        }])]
+
+Return: {
+    "original_query": "How does BERT work?",
+    "retrieval_attempts": 1,
+    "messages": [AIMessage(tool_calls=[...])]
+}
+
+LangGraph merges → state updated
+ToolNode sees AIMessage.tool_calls → executes retrieve_papers("How does BERT work?")
+ToolNode adds ToolMessage(content=<JSON documents>) to state.messages
+Graph routes to grade_documents_node
 """
 
 # Nodes written so far (Files 8-9)
@@ -105,18 +137,18 @@ from .guardrail_node import ainvoke_guardrail_step, continue_after_guardrail
 from .out_of_scope_node import ainvoke_out_of_scope_step
 
 # Uncomment each line as the corresponding file is written (Files 10-13):
-# from .retrieve_node import ainvoke_retrieve_step
-# from .grade_documents_node import ainvoke_grade_documents_step
-# from .rewrite_query_node import ainvoke_rewrite_query_step
-# from .generate_answer_node import ainvoke_generate_answer_step
+from .retrieve_node import ainvoke_retrieve_step
+from .grade_documents_node import ainvoke_grade_documents_step
+from .rewrite_query_node import ainvoke_rewrite_query_step
+from .generate_answer_node import ainvoke_generate_answer_step
 
 __all__ = [
     "ainvoke_guardrail_step",
     "continue_after_guardrail",
     "ainvoke_out_of_scope_step",
     # Uncomment as files are added:
-    # "ainvoke_retrieve_step",
-    # "ainvoke_grade_documents_step",
-    # "ainvoke_rewrite_query_step",
-    # "ainvoke_generate_answer_step",
+    "ainvoke_retrieve_step",
+    "ainvoke_grade_documents_step",
+    "ainvoke_rewrite_query_step",
+    "ainvoke_generate_answer_step",
 ]
