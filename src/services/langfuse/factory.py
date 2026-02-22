@@ -43,13 +43,12 @@ def make_langfuse_tracer(settings: Optional[Settings] = None) -> LangfuseTracer:
         from langfuse import Langfuse
 
         client = Langfuse(
-            public_keys=ls.public_key,
-            secret_keys=ls.secret_key,
+            public_key=ls.public_key,
+            secret_key=ls.secret_key,
             host=ls.host,
             flush_at=ls.flush_at,
             flush_interval=ls.flush_interval,
             debug=ls.debug,
-            max_retries=ls.max_retries,
             timeout=ls.timeout,
         )
         logger.info(f"Langfuse connected at {ls.host}")
