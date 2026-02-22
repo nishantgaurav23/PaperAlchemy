@@ -32,21 +32,9 @@ Unlike tutorials that jump straight to vector search, PaperAlchemy follows the *
 
 ## System Architecture
 
-> **Edit diagram:** Open [`architecture.drawio`](architecture.drawio) in [draw.io](https://app.diagrams.net/) or the VS Code draw.io extension.
-> SVGs below are auto-exported by CI on every push — if they show as broken on a fresh clone, wait ~1 minute for the [export action](.github/workflows/export-drawio.yml) to complete.
+> **Edit diagram:** Open [`architecture.drawio`](architecture.drawio) in [draw.io](https://app.diagrams.net/) or the VS Code draw.io extension. A [CI workflow](.github/workflows/export-drawio.yml) auto-exports it to SVG on every push.
 
 ### Full System Architecture
-
-![PaperAlchemy System Architecture](docs/diagrams/architecture-PaperAlchemy-Architecture.svg)
-
-### LangGraph Agentic RAG Workflow
-
-![LangGraph Workflow](docs/diagrams/architecture-LangGraph-Workflow.svg)
-
----
-
-<details>
-<summary>Mermaid architecture overview (text fallback)</summary>
 
 ```mermaid
 graph TB
@@ -113,8 +101,6 @@ graph TB
     style Agent2 fill:#fce4ec
     style Ingestion fill:#fff8e1
 ```
-
-</details>
 
 ### Data Flow
 
@@ -489,10 +475,7 @@ Return to User
 
 ### LangGraph Pipeline
 
-> See the full interactive diagram: [architecture.drawio](architecture.drawio) (page 2) or the auto-exported SVG at the top of this README.
-
-<details>
-<summary>Mermaid flow (text)</summary>
+> Full interactive diagram: [`architecture.drawio`](architecture.drawio) — page 2 (LangGraph-Workflow).
 
 ```mermaid
 graph TD
@@ -513,8 +496,6 @@ graph TD
     style grade_documents_node fill:#e8f5e9
     style generate_answer_node fill:#f3e5f5
 ```
-
-</details>
 
 **Key Components:**
 - `src/services/agents/agentic_rag.py` — `AgenticRAGService`: compiles graph, runs workflow, extracts sources

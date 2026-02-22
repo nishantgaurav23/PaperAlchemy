@@ -1,18 +1,19 @@
 name: Export draw.io Diagrams
 
-# Runs whenever architecture.drawio changes on main,
-# exports each diagram page to SVG, and commits the
-# result so the README can embed them as static images.
+# Runs on every push to main (or manual trigger).
+# Exports each page in architecture.drawio to SVG and commits
+# the result so README.md can embed them as static images.
 
 on:
   push:
     branches: [main]
     paths:
       - "architecture.drawio"
-  workflow_dispatch:   # allow manual trigger from GitHub UI
+      - ".github/workflows/export-drawio.yml"
+  workflow_dispatch:   # allow one-click trigger from the GitHub Actions UI
 
 permissions:
-  contents: write      # needed to commit the exported SVGs back
+  contents: write      # required to push the exported SVGs back to the repo
 
 jobs:
   export:
@@ -22,19 +23,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # Use a PAT or the default GITHUB_TOKEN. With contents:write
-          # the default token is enough for pushing back to the same repo.
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Export draw.io → SVG
+      - name: Export draw.io pages → SVG
         uses: rlespinasse/drawio-export-action@v4
         with:
-          # Export every page in architecture.drawio as a separate SVG.
-          # Output goes to docs/diagrams/ relative to the repo root.
-          path: architecture.drawio
+          # path must be a DIRECTORY (action scans it for .drawio files)
+          path: .
           format: svg
+          # output is relative to each .drawio file's location;
+          # architecture.drawio is at the root, so files land in docs/diagrams/
           output: docs/diagrams
-          # Remove draw.io watermark on free-tier export
           remove-page-suffix: false
 
       - name: Commit exported SVGs
@@ -42,6 +41,5 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add docs/diagrams/
-          # Only commit when there are actual changes (avoids empty commits)
           git diff --staged --quiet || git commit -m "ci: export architecture.drawio → SVG [skip ci]"
           git push
