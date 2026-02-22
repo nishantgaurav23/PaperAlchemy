@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/PostgreSQL-17-blue.svg" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/Airflow-2.10-red.svg" alt="Airflow">
   <img src="https://img.shields.io/badge/Docker-Compose-blue.svg" alt="Docker">
-  <img src="https://img.shields.io/badge/Status-Week%207%20Complete-brightgreen.svg" alt="Status">
+  <img src="https://img.shields.io/badge/Status-Week%207%20%2B%20Bug%20Fixes-brightgreen.svg" alt="Status">
 </p>
 
 ---
@@ -32,61 +32,89 @@ Unlike tutorials that jump straight to vector search, PaperAlchemy follows the *
 
 ## System Architecture
 
+> **Edit diagram:** Open [`architecture.drawio`](architecture.drawio) in [draw.io](https://app.diagrams.net/) or the VS Code draw.io extension.
+> SVGs below are auto-exported by CI on every push — if they show as broken on a fresh clone, wait ~1 minute for the [export action](.github/workflows/export-drawio.yml) to complete.
+
+### Full System Architecture
+
+![PaperAlchemy System Architecture](docs/diagrams/architecture-PaperAlchemy-Architecture.svg)
+
+### LangGraph Agentic RAG Workflow
+
+![LangGraph Workflow](docs/diagrams/architecture-LangGraph-Workflow.svg)
+
+---
+
+<details>
+<summary>Mermaid architecture overview (text fallback)</summary>
+
 ```mermaid
 graph TB
-    subgraph External["External Sources"]
-        ArXiv[arXiv API<br/>CS.AI Papers]
-    end
-
-    subgraph Ingestion["Data Ingestion Pipeline"]
-        Airflow[Apache Airflow<br/>Scheduler]
-        Docling[Docling<br/>PDF Parser]
-    end
-
-    subgraph Storage["Storage Layer"]
-        PG[(PostgreSQL 17<br/>Paper Metadata)]
-        OS[(OpenSearch 2.19<br/>BM25 + KNN Index)]
+    subgraph UI["User Interface"]
+        Gradio[Gradio UI :7861<br/>Tab 1: Standard RAG streaming<br/>Tab 2: Agentic RAG LangGraph<br/>Tab 3: Infrastructure links]
+        Swagger[API Docs :8000/docs]
     end
 
     subgraph API["FastAPI Application :8000"]
-        Health["/health<br/>Health Check"]
-        Search["/api/v1/search<br/>BM25 Search"]
-        HybridSearch["/api/v1/hybrid-search<br/>Hybrid Search"]
-        Ask["/api/v1/ask<br/>RAG Pipeline"]
-        Stream["/api/v1/stream<br/>SSE Streaming"]
-        Agent["/api/v1/agentic-ask<br/>LangGraph Agent"]
+        Stream["/api/v1/stream<br/>/api/v1/ask"]
+        Agent["/api/v1/ask-agentic"]
+        Search["/api/v1/search<br/>/api/v1/hybrid-search"]
+        Ingest["/api/v1/ingest/fetch<br/>/api/v1/ingest/index<br/>/api/v1/ingest/reparse"]
     end
 
-    subgraph Services["AI Services"]
-        Ollama[Ollama<br/>Local LLM]
-        Jina[Jina AI<br/>Embeddings]
+    subgraph RAG["Standard RAG Pipeline"]
+        Redis[(Redis Cache<br/>SHA256 · TTL 24h)]
+        OS[(OpenSearch 2.19<br/>BM25 + KNN + RRF)]
+        Jina[Jina AI<br/>1024-dim embeddings]
+        Ollama[Ollama LLM<br/>llama3.2 local]
+        Langfuse[Langfuse v3<br/>per-stage tracing]
     end
 
-    subgraph Monitoring["Observability"]
-        Redis[Redis<br/>Cache]
-        Langfuse[Langfuse<br/>Tracing]
+    subgraph Agent2["Agentic RAG — LangGraph"]
+        Guardrail[guardrail_node<br/>domain score 0-100]
+        Retrieve[retrieve_node<br/>tool call → OpenSearch]
+        Grade[grade_documents_node<br/>binary relevance]
+        Rewrite[rewrite_query_node<br/>adaptive retry ×3]
+        Generate[generate_answer_node<br/>citations + reasoning]
+        OOS[out_of_scope_node<br/>domain rejection]
     end
 
-    ArXiv --> Airflow
-    Airflow --> Docling
-    Airflow --> PG
+    subgraph Ingestion["Data Ingestion Pipeline"]
+        Airflow[Airflow 2.10<br/>arxiv_paper_ingestion DAG]
+        ArXiv[arXiv API<br/>rate-limited 3s]
+        Docling[Docling PDF Parser<br/>section-aware]
+        PG[(PostgreSQL 17<br/>paper metadata)]
+    end
+
+    Gradio --> Stream
+    Gradio --> Agent
+    Swagger --> Search
+    Stream --> Redis
+    Redis -->|MISS| OS
+    OS --> Ollama
+    Jina --> OS
+    Langfuse -.->|trace| OS
+    Agent --> Guardrail
+    Guardrail -->|≥40| Retrieve
+    Guardrail -->|<40| OOS
+    Retrieve --> Grade
+    Grade -->|relevant| Generate
+    Grade -->|irrelevant| Rewrite
+    Rewrite --> Retrieve
+    Airflow --> ArXiv
+    ArXiv --> Docling
+    Docling --> PG
     PG --> OS
-    OS --> Search
-    OS --> HybridSearch
-    Jina --> HybridSearch
-    HybridSearch --> Ask
-    Ollama --> Ask
-    Ollama --> Stream
-    Ask --> Agent
-    Redis --> Ask
-    Langfuse --> Ask
+    Ingest --> Airflow
 
-    style External fill:#e1f5fe
-    style Storage fill:#fff3e0
+    style UI fill:#e1f5fe
     style API fill:#e8f5e9
-    style Services fill:#f3e5f5
-    style Monitoring fill:#fce4ec
+    style RAG fill:#fff3e0
+    style Agent2 fill:#fce4ec
+    style Ingestion fill:#fff8e1
 ```
+
+</details>
 
 ### Data Flow
 
@@ -137,7 +165,8 @@ sequenceDiagram
 | **Week 4** | Chunking & Hybrid Search | ✅ Complete | Section-aware chunking, Jina embeddings, RRF fusion, Hybrid search API |
 | **Week 5** | Complete RAG Pipeline | ✅ Complete | Ollama LLM, RAG prompt engineering, SSE streaming, `/ask` + `/stream` endpoints |
 | **Week 6** | Production Monitoring & Caching | ✅ Complete | Redis caching (150-400x speedup), Langfuse tracing, graceful degradation |
-| **Week 7** | Agentic RAG | ✅ Complete | LangGraph StateGraph, Guardrail node, Adaptive retrieval, Gradio UI |
+| **Week 7** | Agentic RAG + Gradio UI | ✅ Complete | LangGraph StateGraph, Guardrail/Grade/Rewrite/Generate nodes, 3-tab Gradio UI, Airflow HTTP ingestion DAG |
+| **Post-W7** | Bug Fixes & Hardening | ✅ Applied | SSE parser fix, Langfuse v3 tracing, config typo, Infrastructure tab |
 
 ---
 
@@ -447,7 +476,7 @@ Return to User
 
 ---
 
-## Week 7: Agentic RAG ✅
+## Week 7: Agentic RAG + Gradio UI ✅
 
 ### Learning Objectives
 - LangGraph `StateGraph` with typed context injection (`Runtime[Context]`) for dependency-free nodes
@@ -455,9 +484,15 @@ Return to User
 - Adaptive retrieval: grade documents → rewrite query → retry (up to 3 attempts)
 - Tool-calling pattern: `retrieve_papers` as a LangChain tool executed by `ToolNode`
 - `tools_condition` routing: LLM decides whether to call a tool or terminate
-- Gradio UI: two-tab interface for Standard RAG (streaming) and Agentic RAG (blocking)
+- Airflow HTTP-based ingestion DAG: Airflow calls FastAPI instead of importing `src.*` directly (avoids SQLAlchemy version conflict)
+- Gradio UI: **three-tab** interface — Standard RAG (streaming), Agentic RAG (blocking + reasoning), Infrastructure (service links)
 
 ### LangGraph Pipeline
+
+> See the full interactive diagram: [architecture.drawio](architecture.drawio) (page 2) or the auto-exported SVG at the top of this README.
+
+<details>
+<summary>Mermaid flow (text)</summary>
 
 ```mermaid
 graph TD
@@ -479,6 +514,8 @@ graph TD
     style generate_answer_node fill:#f3e5f5
 ```
 
+</details>
+
 **Key Components:**
 - `src/services/agents/agentic_rag.py` — `AgenticRAGService`: compiles graph, runs workflow, extracts sources
 - `src/services/agents/factory.py` — `make_agentic_rag_service()` factory
@@ -496,8 +533,52 @@ graph TD
 - `src/services/agents/nodes/utils.py` — Shared message-parsing helpers across all nodes
 - `src/routers/agentic.py` — `POST /api/v1/ask-agentic` endpoint
 - `src/schemas/api/agentic.py` — `AgenticAskRequest` / `AgenticAskResponse`
-- `src/gradio_app.py` — Gradio Blocks UI (Standard RAG + Agentic RAG tabs)
+- `src/routers/ingest.py` — `POST /api/v1/ingest/fetch`, `/index`, `/reparse` — HTTP ingestion API for Airflow
+- `airflow/dags/arxiv_paper_ingestion.py` — Airflow DAG (HTTP tasks, no `src.*` imports)
+- `src/gradio_app.py` — Gradio Blocks UI (3 tabs: Standard RAG, Agentic RAG, Infrastructure)
 - `gradio_launcher.py` — Root-level launcher (`make gradio`)
+
+---
+
+## Post-Week-7 Improvements ✅
+
+These fixes were applied after Week 7 to resolve silent failures and minor code issues.
+
+### SSE Streaming Parser Fix (`src/gradio_app.py`)
+
+**Root cause:** The event loop `continue`d after seeing a `sources` key, but the server emits combined events (sources + done + answer in one payload) on two code paths:
+- **"No results" path:** `{"sources": [], "done": true, "answer": "No relevant..."}`
+- **Cache hit path:** `{"sources": [...], "answer": "...", "chunks_used": N}` (no `done` key)
+
+The `continue` silently discarded the answer — the Streaming tab rendered nothing.
+
+**Fix:** Restructured the parser to check `done` first, then cache-hit (`answer` without `chunk`), then pure metadata, then streaming tokens:
+
+```python
+# Priority 1 — done events (may carry sources + answer)
+if data.get("done", False): ...break
+
+# Priority 2 — cache hit (AskResponse dump: has answer, no chunk)
+if "answer" in data and "chunk" not in data: ...break
+
+# Priority 3 — pure metadata (sources only)
+if "sources" in data: ...continue
+
+# Priority 4 — streaming token
+if "chunk" in data: current_answer += data["chunk"]
+```
+
+### Infrastructure Tab (`src/gradio_app.py`)
+Added a third tab with a Markdown table linking all 7 running services (API docs, Gradio, Airflow, pgAdmin, OpenSearch Dashboards, Langfuse, MinIO) with their ports and credentials.
+
+### Config Typo (`src/config.py`)
+Fixed `ChunkingSettings`: `ebv_prefic="CHUNKING__"` → `env_prefix="CHUNKING__"`. Prevented a Pydantic settings warning at startup.
+
+### Floating Docstring Removed (`src/services/ollama/client.py`)
+Removed a ~65-line string literal that sat as a standalone no-op expression between `generate_rag_answer_stream()` and `get_langchain_model()` — dead code from a planning comment left in accidentally.
+
+### Langfuse v3 Tracer Typos (`src/services/langfuse/tracer.py`)
+Fixed method names: `end_search_search` → `end_search`, `end_genertaion` → `end_generation`. These caused `AttributeError` crashes that silently disabled tracing.
 
 ---
 
@@ -591,13 +672,14 @@ PaperAlchemy/
 │   │           ├── generate_answer_node.py # Final answer generation
 │   │           ├── out_of_scope_node.py    # Polite rejection node
 │   │           └── utils.py              # Shared message-parsing helpers
-│   ├── gradio_app.py             # Gradio UI (Standard RAG + Agentic RAG tabs)
+│   ├── gradio_app.py             # Gradio UI (3 tabs: Standard RAG, Agentic RAG, Infrastructure)
 │   └── routers/                  # API route handlers
 │       ├── ping.py               # /api/v1/health with service checks
 │       ├── search.py             # /api/v1/search GET + POST
 │       ├── hybrid_search.py      # /api/v1/hybrid-search POST
-│       ├── ask.py                # /api/v1/ask + /api/v1/stream (RAG)
-│       └── agentic.py            # /api/v1/ask-agentic (Agentic RAG)
+│       ├── ask.py                # /api/v1/ask + /api/v1/stream (RAG + SSE)
+│       ├── agentic.py            # /api/v1/ask-agentic (Agentic RAG)
+│       └── ingest.py             # /api/v1/ingest/fetch|index|reparse (HTTP ingestion API)
 ├── notebooks/                    # Weekly learning notebooks
 │   ├── week1/                    # Infrastructure setup
 │   ├── week2/                    # arXiv integration & PDF parsing
@@ -606,7 +688,12 @@ PaperAlchemy/
 │   ├── week5/                    # Complete RAG pipeline with LLM
 │   ├── week6/                    # Redis caching & Langfuse tracing
 │   └── week7/                    # Agentic RAG with LangGraph
+├── airflow/                      # Airflow DAGs
+│   └── dags/
+│       ├── arxiv_paper_ingestion.py  # HTTP-based ingestion DAG (Airflow → FastAPI)
+│       └── arxiv_ingestion/          # DAG task modules (fetching, indexing, reporting)
 ├── gradio_launcher.py            # Gradio UI launcher (make gradio)
+├── architecture.drawio           # Interactive architecture diagram (open in draw.io)
 ├── compose.yml                   # Docker services (12 containers)
 ├── Dockerfile                    # Application container
 ├── pyproject.toml                # Python dependencies (UV)
@@ -619,13 +706,15 @@ PaperAlchemy/
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| **Gradio UI** | http://localhost:7861 | `make gradio` |
+| **Gradio UI** | http://localhost:7861 | `make gradio` to start |
 | **FastAPI Docs** | http://localhost:8000/docs | — |
 | **FastAPI Health** | http://localhost:8000/health | — |
 | **API Health (detailed)** | http://localhost:8000/api/v1/health | — |
-| **Airflow UI** | http://localhost:8080 | See generated credentials |
+| **Airflow UI** | http://localhost:8080 | `airflow` / `airflow` |
+| **pgAdmin** | http://localhost:5050 | `admin@paperalchemy.dev` / `paperalchemy_secret` |
 | **OpenSearch Dashboards** | http://localhost:5602 | No auth |
 | **Langfuse** | http://localhost:3001 | Setup on first visit |
+| **MinIO Console** | http://localhost:9091 | — |
 | **Ollama API** | http://localhost:11434 | — |
 | **PostgreSQL** | localhost:5433 | `paperalchemy` / `paperalchemy_secret` |
 | **Redis** | localhost:6380 | — |
@@ -643,8 +732,11 @@ PaperAlchemy/
 | `/api/v1/search` | POST | BM25 search (JSON body with filters) | 3 |
 | `/api/v1/hybrid-search` | POST | Hybrid BM25 + vector search | 4 |
 | `/api/v1/ask` | POST | RAG question answering | 5 |
-| `/api/v1/stream` | POST | Streaming RAG responses | 5 |
+| `/api/v1/stream` | POST | Streaming RAG responses (SSE) | 5 |
 | `/api/v1/ask-agentic` | POST | Agentic RAG with LangGraph | 7 |
+| `/api/v1/ingest/fetch` | POST | Fetch + parse papers from arXiv | 7 |
+| `/api/v1/ingest/index` | POST | Chunk + embed + index papers into OpenSearch | 7 |
+| `/api/v1/ingest/reparse` | POST | Re-parse existing papers (replace_existing=True) | 7 |
 
 **Interactive API docs:** http://localhost:8000/docs
 
@@ -749,6 +841,36 @@ curl http://localhost:9201/_cluster/health
 # Rebuild the API container after code changes
 docker compose up --build --force-recreate -d api
 ```
+
+---
+
+## Pending / Roadmap
+
+The following features are planned or referenced in the curriculum but **not yet implemented** in this fork.
+
+### Week 7 — Remaining
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Telegram Bot** | ⏳ Not started | Referenced in curriculum; `src/services/telegram/` does not exist yet |
+| **Week 7 Notebook** | ⏳ Empty | `notebooks/week7/` directory exists but contains no `.ipynb` file |
+
+### Week 8+ — Future Weeks
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **RAG Evaluation** | ⏳ Planned | RAGAS / LLM-as-judge — faithfulness, relevance, context precision metrics |
+| **Reranker** | ⏳ Planned | Cross-encoder reranking (e.g. `cross-encoder/ms-marco-MiniLM`) after retrieval |
+| **Multi-modal Support** | ⏳ Planned | Extract figures/tables from papers; vision LLM for image Q&A |
+| **Fine-tuning** | ⏳ Planned | Domain-adapt a base model on arXiv paper abstracts (LoRA / QLoRA) |
+| **Production Auth** | ⏳ Planned | API key auth, rate limiting, CORS hardening |
+| **Cloud Deployment** | ⏳ Planned | Kubernetes / AWS ECS / GCP Cloud Run deployment config |
+
+### Known Gaps
+| Gap | Detail |
+|-----|--------|
+| **Test coverage** | `make test` works but coverage is minimal — unit tests for services not yet written |
+| **Agentic streaming** | `/ask-agentic` is blocking (full pipeline before response); streaming mid-graph is a future enhancement |
+| **Embedding cache** | Jina embedding calls are not cached — same query re-embeds on every cache miss |
+| **pgAdmin pre-config** | pgAdmin runs but requires manual server registration on first use |
 
 ---
 

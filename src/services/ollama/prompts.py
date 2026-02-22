@@ -151,7 +151,11 @@ class RAGPromptBuilder:
         prompt += f"### Question:\n{query}\n\n"
         prompt += (
             "### Answer:\n"
-            "Provide a clear, informative response based on the paper excerpts above. "
+            "FIRST: Check if the question is actually about the topics in the paper excerpts above. "
+            "If the question is unrelated to AI, machine learning, or the research topics in the excerpts "
+            "(e.g., general math, cooking, geography), respond ONLY with: "
+            "'This question is outside my knowledge base. I can only answer questions about the indexed academic papers.'\n"
+            "OTHERWISE: Provide a concise, accurate response based strictly on the paper excerpts. "
             "Cite sources using [arXiv:id] format when referencing specific information.\n\n"
         )
 

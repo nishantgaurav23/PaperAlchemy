@@ -86,8 +86,8 @@ class RAGTracer:
             metadata={"search_mode": search_mode, "top_k": top_k}
         )
     
-    def end_search_search(self, span: Any, chunks_found: int, search_mode: str) -> None:
-        """End thesearch span with results."""
+    def end_search(self, span: Any, chunks_found: int, search_mode: str) -> None:
+        """End the search span with results."""
         self._tracer.update_span(
             span=span,
             output={"chunks_found": chunks_found, "search_mode": search_mode},
@@ -117,7 +117,7 @@ class RAGTracer:
             input=prompt,
         )
     
-    def end_genertaion(self, generation: Any, answer: str, usage: Optional[dict] = None) -> None:
+    def end_generation(self, generation: Any, answer: str, usage: Optional[dict] = None) -> None:
         """End the generation span with the LLM response."""
         self._tracer.update_generation(
             generation=generation,

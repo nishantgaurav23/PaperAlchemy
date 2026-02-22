@@ -31,6 +31,7 @@ from src.repositories.paper import PaperRepository
 from src.schemas.api.ingest import (
     FetchRequest, FetchResponse,
     IndexRequest, IndexResponse,
+    ReparseResponse,
 )
 from src.services.indexing.factory import make_hybrid_indexing_service
 from src.services.metadata_fetcher import make_metadata_fetcher
@@ -139,7 +140,7 @@ async def index_papers(
         ]
 
         indexing_service = make_hybrid_indexing_service(settings)
-        stats = await indexing_service.index_papers_batch(paper_dicts)
+        stats = await indexing_service.index_papers_batch(paper_dicts, replace_existing=True)
 
         return IndexResponse(
             papers_processed=stats.get("papers_processed", len(papers)),
@@ -150,4 +151,36 @@ async def index_papers(
 
     except Exception as e:
         logger.error(f"Index pipeline error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@ingest_router.post("/reparse", response_model=ReparseResponse)
+async def reparse_pending_papers(
+    session: SessionDep,
+) -> ReparseResponse:
+    """
+    Re-parse PDFs for all papers with parsing_status='pending'.
+
+    Downloads and parses PDFs for papers that previously failed or
+    timed out during parsing. Useful after increasing the PDF timeout.
+    """
+    logger.info("POST /ingest/reparse — processing pending papers")
+
+    try:
+        metadata_fetcher = make_metadata_fetcher()
+        result = await metadata_fetcher.processing_pending_papers(
+            db_session=session,
+        )
+
+        return ReparseResponse(
+            papers_processed=result.get("papers_processed", 0),
+            pdfs_downloaded=result.get("pdfs_downloaded", 0),
+            pdfs_parsed=result.get("pdfs_parsed", 0),
+            parse_failures=result.get("parse_failures", 0),
+            errors=result.get("errors", []),
+            processing_time=result.get("processing_time", 0.0),
+        )
+
+    except Exception as e:
+        logger.error(f"Reparse pipeline error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

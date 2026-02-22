@@ -151,7 +151,7 @@ def get_latest_query(messages: List[AnyMessage]) -> str:
     raise ValueError("No HumanMessage found in state message")
 
 def get_latest_context(messages: List[AnyMessage]) -> str:
-    """Return the ocntent of the most recent ToolMessage.
+    """Return the content of the most recent ToolMessage.
     
     What it does:
         Scan messages in reverse order and returns the first ToolMessage's

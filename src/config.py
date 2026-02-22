@@ -212,7 +212,7 @@ class ChunkingSettings(BaseSettings):
           improving retrieval precision for section-specific queries.
     """
 
-    model_config = SettingsConfigDict(ebv_prefic="CHUNKING__")
+    model_config = SettingsConfigDict(env_prefix="CHUNKING__")
 
     chunk_size: int = 600           # Target words per chunk
     overlap_size: int = 100         # Words to overlap between chunks

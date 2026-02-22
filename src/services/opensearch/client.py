@@ -295,7 +295,8 @@ class OpenSearchClient:
                     size=size,
                     from_=from_,
                     categories=categories,
-                    latest=latest
+                    latest=latest,
+                    min_score=min_score,
                 )
             
             # Use native OpenSearch hybrid search with RRF pipeline
@@ -317,7 +318,8 @@ class OpenSearchClient:
             size: int,
             from_: int,
             categories: Optional[List[str]],
-            latest: bool
+            latest: bool,
+            min_score: float = 0.0,
     ) -> Dict[str, Any]:
         """Pure BM25 search implementation."""
         builder = QueryBuilder(
@@ -335,6 +337,9 @@ class OpenSearchClient:
         results = {"total": response["hits"]["total"]["value"], "hits": []}
 
         for hit in response["hits"]["hits"]:
+            if hit["_score"] < min_score:
+                continue
+
             chunk = hit["_source"]
             chunk["score"] = hit["_score"]
             chunk["chunk_id"] = hit["_id"]
@@ -344,7 +349,7 @@ class OpenSearchClient:
 
             results["hits"].append(chunk)
 
-        logger.info(f"BM25 search for '{query[:50]}...' returned {results['total']} results")
+        logger.info(f"BM25 search for '{query[:50]}...' returned {len(results['hits'])} results (min_score={min_score})")
         return results
     
     def _search_hybrid_native(

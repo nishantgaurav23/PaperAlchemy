@@ -66,7 +66,7 @@ Timeout differences:
 """
 import json
 import logging
-from typing import Iterator
+from typing import AsyncGenerator
 
 import gradio as gr
 import httpx
@@ -82,7 +82,7 @@ async def stream_rag_response(
     use_hybrid: bool = True,
     model: str = DEFAULT_MODEL,
     categories: str = "",
-) -> Iterator[str]:
+) -> AsyncGenerator[str, None]:
     """Stream tokens from the standard RAG /stream endpoint.
 
     What it does:
@@ -149,23 +149,38 @@ async def stream_rag_response(
                         yield f"Error: {data['error']}"
                         return
 
-                    # Metadata arrives before the first token
+                    # 1. Done events take priority (may also carry sources + answer)
+                    if data.get("done", False):
+                        if "sources" in data:
+                            sources = data.get("sources", [])
+                            chunks_used = data.get("chunks_used", 0)
+                            search_mode = data.get("search_mode", "")
+                        final = data.get("answer", current_answer)
+                        yield _format_stream_output(final, sources, chunks_used, search_mode)
+                        break
+
+                    # 2. Cache hit: has "answer" but no "done" key (AskResponse dump)
+                    if "answer" in data and "chunk" not in data:
+                        if "sources" in data:
+                            sources = data.get("sources", [])
+                            chunks_used = data.get("chunks_used", 0)
+                            search_mode = data.get("search_mode", "")
+                        yield _format_stream_output(data["answer"], sources, chunks_used, search_mode)
+                        break
+
+                    # 3. Pure metadata event (sources only, no answer/done)
                     if "sources" in data:
                         sources = data["sources"]
                         chunks_used = data.get("chunks_used", 0)
                         search_mode = data.get("search_mode", "")
                         continue
 
+                    # 4. Streaming token
                     if "chunk" in data:
                         current_answer += data["chunk"]
                         yield _format_stream_output(
                             current_answer, sources, chunks_used, search_mode
                         )
-
-                    if data.get("done", False):
-                        final = data.get("answer", current_answer)
-                        yield _format_stream_output(final, sources, chunks_used, search_mode)
-                        break
 
     except httpx.RequestError as e:
         yield (
@@ -471,6 +486,26 @@ def create_gradio_interface() -> gr.Blocks:
 
                 ag_btn.click(fn=ask_agentic, inputs=[ag_query, ag_model], outputs=ag_output)
                 ag_query.submit(fn=ask_agentic, inputs=[ag_query, ag_model], outputs=ag_output)
+
+            # ── Tab 3: Infrastructure ────────────────────────────────────────
+            with gr.TabItem("Infrastructure"):
+                gr.Markdown(
+                    """
+                    ## Service Links
+
+                    Click any link to open the service dashboard in a new tab.
+
+                    | Service | URL | Credentials |
+                    |---|---|---|
+                    | **API Swagger Docs** | [http://localhost:8000/docs](http://localhost:8000/docs) | — |
+                    | **Gradio UI** | [http://localhost:7861](http://localhost:7861) | — (this page) |
+                    | **Airflow** | [http://localhost:8080](http://localhost:8080) | `airflow` / `airflow` |
+                    | **pgAdmin** | [http://localhost:5050](http://localhost:5050) | `admin@paperalchemy.dev` / `paperalchemy_secret` |
+                    | **OpenSearch Dashboards** | [http://localhost:5602](http://localhost:5602) | — |
+                    | **Langfuse** | [http://localhost:3001](http://localhost:3001) | — |
+                    | **MinIO Console** | [http://localhost:9091](http://localhost:9091) | — |
+                    """
+                )
 
         gr.Markdown(
             """

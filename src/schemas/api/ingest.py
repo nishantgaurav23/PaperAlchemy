@@ -57,3 +57,13 @@ class IndexResponse(BaseModel):
     chunks_created: int
     chunks_indexed: int
     errors: List[str]
+
+
+class ReparseResponse(BaseModel):
+    """Response from POST /api/v1/ingest/reparse."""
+    papers_processed: int
+    pdfs_downloaded: int
+    pdfs_parsed: int
+    parse_failures: int
+    errors: List[str]
+    processing_time: float

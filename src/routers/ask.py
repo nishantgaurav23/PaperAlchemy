@@ -126,7 +126,11 @@ async def _retrieve_chunks(
     # Trace search
     search_span = rag_tracer.trace_search(trace, search_mode, request.top_k) if rag_tracer else None
 
-    # Execute search
+    # Execute search — use a relevance threshold to filter out off-topic queries.
+    # BM25 TF-IDF scores for relevant academic content are typically 2+;
+    # irrelevant queries (e.g. "2 + 2") score near 0. Hybrid RRF scores are 0-1.
+    min_score = 0.01 if is_hybrid else 1.5
+
     results = opensearch_client.search_unified(
         query=request.query,
         query_embedding=query_embedding,
@@ -134,7 +138,7 @@ async def _retrieve_chunks(
         from_=0,
         categories=request.categories,
         use_hybrid=is_hybrid,
-        min_score=0.0,
+        min_score=min_score,
     )
 
     # Extract chunks and sources
