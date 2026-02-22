@@ -352,6 +352,21 @@ class PaperRepository:
                                                                                                 
         return self.session.execute(stmt).scalar_one()                                           
                                                                                                 
+    def get_recently_stored(self, since: datetime, limit: int = 200) -> list[Paper]:
+        """Get papers stored in the database since a given datetime (by created_at)."""
+        stmt = (
+            select(Paper)
+            .where(Paper.created_at >= since)
+            .order_by(Paper.created_at.desc())
+            .limit(limit)
+        )
+        return list(self.session.execute(stmt).scalars().all())
+
+    def count_all(self) -> int:
+        """Return total number of papers in the database."""
+        from sqlalchemy import func
+        return self.session.execute(select(func.count(Paper.id))).scalar_one()
+
     def delete(self, arxiv_id: str) -> bool:                                                     
         """                                                                                      
         Delete a paper.                                                                          

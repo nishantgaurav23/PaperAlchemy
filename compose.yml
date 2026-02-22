@@ -167,9 +167,17 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor                                                       
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://paperalchemy:paperalchemy_secret@postgres:5432/paperalchemy                                                                           
       - AIRFLOW__CORE__LOAD_EXAMPLES=false                                                          
-      - AIRFLOW__WEBSERVER__SECRET_KEY=paperalchemy_secret_key                                      
+      - AIRFLOW__WEBSERVER__SECRET_KEY=paperalchemy_secret_key
+      # --- ADD THESE ---
+      - PYTHONPATH=/opt/airflow/project
+      - POSTGRES__HOST=postgres
+      - POSTGRES__PORT=5432
+      - OPENSEARCH__HOST=http://opensearch:9200
+      - _PIP_ADDITIONAL_REQUIREMENTS=opensearch-py httpx pydantic-settings python-dateutil docling
+
     volumes:                                                                                        
-      - ./airflow/dags:/opt/airflow/dags                                                            
+      - ./airflow/dags:/opt/airflow/dags
+      - ./:/opt/airflow/project          # ← ADD: mounts project root                                                            
       - airflow_logs:/opt/airflow/logs                                                              
     ports:                                                                                          
       - "8080:8080"                                                                                 

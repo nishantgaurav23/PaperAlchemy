@@ -40,6 +40,7 @@ from src.db.factory import make_database
 from src.routers import ping, search, hybrid_search
 from src.routers.ask import ask_router, stream_router
 from src.routers.agentic import agentic_router
+from src.routers.ingest import ingest_router
 from src.services.opensearch.factory import make_opensearch_client
 from src.services.embeddings.factory import make_embeddings_service
 from src.services.ollama.factory import make_ollama_client
@@ -157,6 +158,7 @@ app.include_router(search.router, prefix="/api/v1")
 app.include_router(ask_router, prefix="/api/v1")
 app.include_router(stream_router, prefix="/api/v1")
 app.include_router(agentic_router)
+app.include_router(ingest_router)
                                                                                                     
                                                                                                     
 @app.get("/")                                                                                      
