@@ -30,6 +30,14 @@ ENV APP_VERSION=$VERSION
 
 WORKDIR /app
 
+# Install system libraries required by docling (PDF parsing)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libxcb1 \
+    libxcb-util1 \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy the virtual environment from the base stage
 COPY --from=base /app /app
 

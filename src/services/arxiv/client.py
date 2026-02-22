@@ -43,7 +43,7 @@ class ArxivClient:
                                                                                                                                 
     def __init__(                                                                                                                
         self,                                                                                                                    
-        base_url: str = "http://export.arxiv.org/api/query",                                                                     
+        base_url: str = "https://export.arxiv.org/api/query",                                                                     
         rate_limit_delay: float = 3.0,                                                                                           
         max_results: int = 100,                                                                                                  
         search_category: str = "cs.AI",                                                                                          

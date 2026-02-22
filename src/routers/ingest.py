@@ -130,9 +130,9 @@ async def index_papers(
                 "authors": p.authors,
                 "abstract": p.abstract,
                 "categories": p.categories,
-                "published_date": str(p.published_date),
+                "published_date": p.published_date.strftime("%Y-%m-%dT%H:%M:%SZ") if p.published_date else None,
                 "pdf_url": p.pdf_url,
-                "pdf_content": p.pdf_content,
+                "raw_text": p.pdf_content,
                 "sections": p.sections or [],
             }
             for p in papers

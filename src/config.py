@@ -167,7 +167,7 @@ class ArxivSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="ARXIV__")
 
-    base_url: str = "http://export.arxiv.org/api/query"
+    base_url: str = "https://export.arxiv.org/api/query"
     rate_limit_delay: float = 3.0 # arXiv requires 3s between requests
     max_results: int = 100
     category: str = "cs.AI"  # Default category: Computer Science - Artificial Intelligence
@@ -181,8 +181,8 @@ class PDFParserSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="PDF_PARSER__")                                     
                                                                                                     
     max_pages: int = 50
-    max_file_size_mb: int = 50                                                                            
-    timeout: int = 30
+    max_file_size_mb: int = 50
+    timeout: int = 300  # 5 minutes — docling loads ML models on first parse
     cache_dir: str = "data/arxiv_pdfs"
 
 class ChunkingSettings(BaseSettings):
