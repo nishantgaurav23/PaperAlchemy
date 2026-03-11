@@ -1,33 +1,18 @@
+"""Redis cache client for exact-match RAG response caching (S5.4).
+
+Generates deterministic SHA256 keys from query parameters, stores serialized
+RAGResponse objects with configurable TTL, and returns cached responses on
+exact match. All Redis failures are caught and logged — never propagated.
 """
-Redis cache client for exact-match RAG response caching.
 
-Why it's needed:
-    Repeated identical queries (same question, model, parameters) should
-    return instantly instead of re-running the full RAG pipeline (embed →
-    search → generate). Redis provides sub-millisecond lookups for a
-    150-400x speedup on cache hits.
-
-What it does:
-    - Generates a deterministic SHA256 cache key from query parameters
-    - Stores serialized AskResponse objects with configurable TTL
-    - Returns cached responses on exact match, None on miss
-    - Gracefully handles Redis connection failures (log + continue)
-
-How it helps:
-    - Dramatically reduces latency for repeated queries
-    - Reduces load on Ollama and OpenSearch
-    - TTL ensures stale responses expire automatically
-    - Graceful fallback means cache failures never break the pipeline
-"""
+from __future__ import annotations
 
 import hashlib
 import json
 import logging
-from typing import Optional
 
 from redis.asyncio import Redis
-
-from src.schemas.api.ask import AskResponse
+from src.services.rag.models import RAGResponse
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +20,7 @@ logger = logging.getLogger(__name__)
 class CacheClient:
     """Exact-match cache for RAG responses backed by Redis."""
 
-    def __init__(self, redis_client: Redis, ttl_seconds: int = 86400):
+    def __init__(self, redis_client: Redis, ttl_seconds: int = 86400) -> None:
         self._redis = redis_client
         self._ttl = ttl_seconds
 
@@ -44,47 +29,36 @@ class CacheClient:
         query: str,
         model: str,
         top_k: int,
-        use_hybrid: bool,
-        categories: Optional[list[str]] = None,
+        categories: list[str] | None = None,
     ) -> str:
-        """Generate a deterministic cache key from query parameters.
-
-        Uses SHA256 hash of normalized parameters so keys are fixed-length
-        and safe for Redis key names.
-        """
+        """Generate a deterministic SHA256 cache key from query parameters."""
         key_data = {
             "query": query.strip().lower(),
             "model": model,
             "top_k": top_k,
-            "use_hybrid": use_hybrid,
             "categories": sorted(categories) if categories else [],
         }
         key_str = json.dumps(key_data, sort_keys=True)
         key_hash = hashlib.sha256(key_str.encode()).hexdigest()
-        return f"rag:ask:{key_hash}"
+        return f"rag:response:{key_hash}"
 
     async def find_cached_response(
         self,
         query: str,
         model: str,
         top_k: int,
-        use_hybrid: bool,
-        categories: Optional[list[str]] = None,
-    ) -> Optional[AskResponse]:
-        """Look up a cached response for the given query parameters.
-
-        Returns None on cache miss or Redis error.
-        """
+        categories: list[str] | None = None,
+    ) -> RAGResponse | None:
+        """Look up a cached RAGResponse. Returns None on miss or error."""
         try:
-            key = self._generate_cache_key(query, model, top_k, use_hybrid, categories)
+            key = self._generate_cache_key(query, model, top_k, categories)
             cached = await self._redis.get(key)
             if cached is None:
                 return None
-            data = json.loads(cached)
-            logger.info(f"Cache HIT for key {key[:20]}...")
-            return AskResponse(**data)
-        except Exception as e:
-            logger.warning(f"Cache lookup failed (graceful skip): {e}")
+            logger.info("Cache HIT for key %s...", key[:25])
+            return RAGResponse.model_validate_json(cached)
+        except Exception:
+            logger.warning("Cache lookup failed (graceful skip)", exc_info=True)
             return None
 
     async def store_response(
@@ -92,15 +66,55 @@ class CacheClient:
         query: str,
         model: str,
         top_k: int,
-        use_hybrid: bool,
-        response: AskResponse,
-        categories: Optional[list[str]] = None,
+        response: RAGResponse,
+        categories: list[str] | None = None,
     ) -> None:
-        """Store a RAG response in cache with TTL."""
+        """Store a RAGResponse in cache with TTL. Never raises."""
         try:
-            key = self._generate_cache_key(query, model, top_k, use_hybrid, categories)
+            key = self._generate_cache_key(query, model, top_k, categories)
             data = response.model_dump_json()
             await self._redis.set(key, data, ex=self._ttl)
-            logger.info(f"Cache STORE for key {key[:20]}... (TTL={self._ttl}s)")
-        except Exception as e:
-            logger.warning(f"Cache store failed (graceful skip): {e}")
+            logger.info("Cache STORE for key %s... (TTL=%ds)", key[:25], self._ttl)
+        except Exception:
+            logger.warning("Cache store failed (graceful skip)", exc_info=True)
+
+    async def invalidate(
+        self,
+        query: str,
+        model: str,
+        top_k: int,
+        categories: list[str] | None = None,
+    ) -> int:
+        """Delete a specific cached entry. Returns number of keys deleted."""
+        try:
+            key = self._generate_cache_key(query, model, top_k, categories)
+            return await self._redis.delete(key)
+        except Exception:
+            logger.warning("Cache invalidation failed (graceful skip)", exc_info=True)
+            return 0
+
+    async def invalidate_all(self) -> int:
+        """Delete all rag:response:* keys. Returns number deleted."""
+        try:
+            keys = []
+            async for key in self._redis.scan_iter(match="rag:response:*"):
+                keys.append(key)
+            if keys:
+                return await self._redis.delete(*keys)
+            return 0
+        except Exception:
+            logger.warning("Cache invalidate_all failed (graceful skip)", exc_info=True)
+            return 0
+
+    async def get_stats(self) -> dict:
+        """Return basic cache statistics."""
+        try:
+            keys_count = await self._redis.dbsize()
+            info = await self._redis.info("memory")
+            return {
+                "keys_count": keys_count,
+                "memory_usage": info.get("used_memory_human", "unknown"),
+            }
+        except Exception:
+            logger.warning("Cache get_stats failed (graceful skip)", exc_info=True)
+            return {"keys_count": 0, "memory_usage": "unknown"}

@@ -1,237 +1,180 @@
-"""
-Why it's needed:
-    Right now , when something failes (OpenSearch down, paper not found, PDF parsing error), the code raises generic `Exception`
-    which makes error handling imprecise. Custom exceptions let you catch specific failure types and responds appropiately 
-    - return 404 for PaperNotFound, retry on ArxivAPIRateLimitError, alert on OllamaConnectionError, etc.
+"""PaperAlchemy custom exception hierarchy.
 
-How it helps:
-    Every service layer (database, OpenSearch, PDF parser, LLM) gets its own exception hierarchy. This means routers can do
-    except PaperNotFound: return 404 instead of caching everything blindly. It also makes debugging easier - stack traces
-    immediately tell you which subsystem failed.
-                                                                                                                            
-PaperAlchemy Custom Exception Hierarchy.                                                                                         
-                                                                                                                                
-Organized by subsystem so each service layer has its own exception tree.                                                         
-This enables precise error handling in routers and services:                                                                     
-- Repository errors  → 404/500 responses                                                                                       
-- Parsing errors     → retry or skip logic                                                                                     
-- API errors         → rate-limit backoff, timeout retry                                                                       
-- LLM errors         → fallback to cached response                                                                             
-- Config errors      → fail-fast on startup                                                                                    
-                                                                                                                                
-Hierarchy:                                                                                                                       
-Exception                                                                                                                      
-├── RepositoryException        (database layer)                                                                                
-│   ├── PaperNotFound          (SELECT returned no rows)                                                                       
-│   └── PaperNotSaved          (INSERT/UPDATE failed)                                                                          
-├── ParsingException           (document parsing layer)                                                                        
-│   └── PDFParsingException    (PDF-specific parsing)                                                                          
-│       └── PDFValidationError (file isn't a valid PDF)                                                                        
-├── PDFDownloadException       (HTTP download layer)                                                                           
-│   └── PDFDownloadTimeoutError                                                                                                
-├── PDFCacheException          (local PDF cache)                                                                               
-├── OpenSearchException        (search engine layer)                                                                           
-├── ArxivAPIException          (arXiv external API)                                                                            
-│   ├── ArxivAPITimeoutError   (request timed out)                                                                             
-│   ├── ArxivAPIRateLimitError (429 from arXiv)                                                                                
-│   └── ArxivParseError        (malformed XML response)                                                                        
-├── MetadataFetchingException  (ingestion pipeline)                                                                            
-│   └── PipelineException      (DAG/step failure)                                                                              
-├── LLMException               (language model layer)                                                                          
-│   └── OllamaException        (Ollama-specific)                                                                               
-│       ├── OllamaConnectionError (can't reach Ollama)                                                                         
-│       └── OllamaTimeoutError    (generation timed out)                                                                       
-└── ConfigurationError         (invalid settings at startup)                                                                          
+Organized by subsystem so each service layer has its own exception tree.
+This enables precise error handling in routers and middleware:
+- RepositoryError       -> 404/500 responses
+- ParsingError          -> 422 for validation, 500 for parse failures
+- ExternalServiceError  -> 503 (service unavailable)
+- ArxivRateLimitError   -> 429 (too many requests)
+- ConfigurationError    -> 500 (fail-fast on startup)
 """
 
-# =============================================================                                                                  
-# Database / Repository Exceptions                                                                                               
-# ============================================================= 
+from __future__ import annotations
 
-class RepositoryException(Exception):
-    """
-    Base Exception for all database repository operations.
 
-    Raised when CRUD operations on the papers table fail.
-    Routers should catch this to return 500 Internal Server Error.
-    """
+class PaperAlchemyError(Exception):
+    """Base exception for all PaperAlchemy errors."""
 
-class PaperNotFound(RepositoryException):
-    """
-    Raised when a SELECT query returns no matching paper.
+    def __init__(
+        self,
+        detail: str = "An unexpected error occurred",
+        *,
+        status_code: int = 500,
+        context: dict | None = None,
+    ) -> None:
+        self.detail = detail
+        self.status_code = status_code
+        self.context = context
+        super().__init__(detail)
 
-    Typically caught in routers to return HTTP 404.
-    Example: GET /papers/{arxiv_id} where arxiv_id doesn't exist.
-    """
 
-class PaperNotSaved(RepositoryException):
-    """
-    Raised when an INSERT or UPDATE fails to persist a paper.
+# -- Repository (database layer) --
 
-    Could happen due to unique constraint violations (duplicate arxiv_id),
-    connection drops, or transcation rollbacks
-    """
 
-# =============================================================                                                                  
-# PDF Parsing Exceptions                                                                                                         
-# ============================================================= 
+class RepositoryError(PaperAlchemyError):
+    """Base exception for database repository operations."""
 
-class ParsingException(Exception):
-    """
-    Base exception for all document parsing operations.
+    def __init__(self, detail: str = "Database operation failed", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
 
-    Covers PDF, HTML, or any future document format parsing.
-    """
 
-class PDFParsingException(ParsingException):
-    """
-    Raised when Docling fails to extract content from a PDF.
+class PaperNotFoundError(RepositoryError):
+    """Raised when a SELECT query returns no matching paper."""
 
-    Common causes: corrupted PDF, unsopported encoding, timeout.
-    The ingestion pipeline catches this to mark papers as 'failed'.
-    """
+    def __init__(self, detail: str = "Paper not found", **kwargs) -> None:
+        kwargs.setdefault("status_code", 404)
+        super().__init__(detail, **kwargs)
 
-class PDFValidationError(PDFParsingException):
-    """
-    Raised when a file fails PDF format validation before parsing.
 
-    Checks: file size > 0, valid PDF header (%PDF-), not encrypted.
-    Failing validation skips the expensive Docling parsing step.
-    """
+class PaperSaveError(RepositoryError):
+    """Raised when an INSERT or UPDATE fails to persist a paper."""
 
-# =============================================================                                                                  
-# PDF Download Exceptions                                                                                                        
-# =============================================================
+    def __init__(self, detail: str = "Failed to save paper", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
 
-class PDFDownloadException(Exception):
-    """
-    Raised when downloading a PDF for arXiv fails.
 
-    Covers HTTP error (403, 500), network timeouts, and SSL errors.
-    """
+# -- Parsing (document parsing layer) --
 
-class PDFDownloadTimeoutError(PDFDownloadException):
-    """
-    Raised when a PAD download exceeds the confifured timeout.
 
-    Default timeout is set in config. The pipeline can retry with
-    exponential backoff when this occurs.
-    """ 
+class ParsingError(PaperAlchemyError):
+    """Base exception for document parsing operations."""
 
-# =============================================================                                                                  
-# PDF Cache Exceptions                                                                                                           
-# =============================================================
+    def __init__(self, detail: str = "Document parsing failed", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
 
-class PDFCacheException(Exception):
-    """
-    Raised for local PDF file cache errors.
 
-    Covers: disk full, permission denied, corrupted cache file.
-    Non-fatal - the pipeline falls back to re-downloading
-    """
+class PDFParsingError(ParsingError):
+    """Raised when PDF content extraction fails."""
 
-# =============================================================                                                                  
-# OpenSearch Exceptions                                                                                                          
-# =============================================================   
+    def __init__(self, detail: str = "PDF parsing failed", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
 
-class OpenSearchException(Exception):
-    """
-    Raised for OpenSearch client and indexing errors.
 
-    Covers: connection refused, index not found, mapping conflicts,
-    bulk indexing failures, and query syntax errors.
-    Routers catch this to return 503 servie Unavailable.
-    """
+class PDFValidationError(PDFParsingError):
+    """Raised when a file fails PDF format validation before parsing."""
 
-# =============================================================                                                                  
-# ArXiv API Exceptions                                                                                                           
-# =============================================================  
+    def __init__(self, detail: str = "Invalid PDF file", **kwargs) -> None:
+        kwargs.setdefault("status_code", 422)
+        super().__init__(detail, **kwargs)
 
-class ArxivAPIException(Exception):
-    """
-    Base exception for all arXiv API interactions.
 
-    The arXiv API has strict rate limits (1 request per 3 seconds)
-    and can return malformed XML. These exceptions help the pipeline
-    handle each failure mode differently.
-    """
+# -- External Services --
 
-class ArxivAPITimeoutErrorException(ArxivAPIException):
-    """Raised when an arXiv API request exceeds the timeout.
 
-    The pipeline retries with exponential backoff (3s, 6s, 12s).
-    """
+class ExternalServiceError(PaperAlchemyError):
+    """Base exception for external service failures."""
 
-class ArxivAPIRateLimitError(ArxivAPIException):
-    """Raised when arXiv returns HTTP 429 (Too Many Requests).
+    def __init__(self, detail: str = "External service unavailable", **kwargs) -> None:
+        kwargs.setdefault("status_code", 503)
+        super().__init__(detail, **kwargs)
 
-    The pipline must wait before retrying. arXiv recommends
-    a minimum 3-second delay between requests.
-    """
 
-class ArxivParseError(ArxivAPIException):
-    """Raised when the arXiv API response XML cannot be parsed.
-    
-    Happens when arXiv returns HTML error pages instead of Atom XML,
-    or when the feed structure changes unexpetedly.
-    """
+class ArxivAPIError(ExternalServiceError):
+    """Base exception for arXiv API interactions."""
 
- # =============================================================                                                                  
-# Metadata / Pipeline Exceptions                                                                                                 
-# =============================================================
+    def __init__(self, detail: str = "arXiv API error", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
 
-class MetadataFetchingException(Exception):
-    """Raised during the metadata fetching pipeline.
-    
-    Covers the full ingestion flow: arXiv fetch -> parse -> store.
-    """
 
-class PipelineException(MetadataFetchingException):
-    """Raised when an Airflow DAG step or pipeline stage fails.
+class ArxivTimeoutError(ArxivAPIError):
+    """Raised when an arXiv API request exceeds the timeout."""
 
-    Includes context about which step failed and partial results
-    so the pipeline can resume from the last successful step.
-    """ 
+    def __init__(self, detail: str = "arXiv API request timed out", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
 
-# =============================================================                                                                  
-# LLM / Ollama Exceptions                                                                                                        
-# =============================================================
 
-class LLMException(Exception):
-    """Base exception for all language model operations.
-    
-    Covers local (Ollama) and future remote (OpenAI) LLM providers.
-    """
+class ArxivRateLimitError(ArxivAPIError):
+    """Raised when arXiv returns HTTP 429 (Too Many Requests)."""
 
-class OllamaException(LLMException):
-    """Raised for Ollama-specific service errors.
-    
-    Covers: model not loaded, inference errros, malformed responses.
-    """
+    def __init__(self, detail: str = "arXiv rate limit exceeded", **kwargs) -> None:
+        kwargs.setdefault("status_code", 429)
+        super().__init__(detail, **kwargs)
 
-class OllamaConnectionError(OllamaException):
-    """Raised when the Ollama servie is unreachable.
-    
-    Common causes: Docker container not running, wrong port,
-    network partition. The router returns 503 with a helpful message.
-    """
 
-class OllamaTimeoutError(OllamaException):
-    """Raised when Ollama generation exceeds the timeout.
-    
-    Large prompts or complex queries can cause this. The router
-    can retry with a shorter context or return a partial response.
-    """
+class EmbeddingServiceError(ExternalServiceError):
+    """Raised for Jina embedding API errors."""
 
-# =============================================================                                                                  
-# Configuration Exceptions                                                                                                       
-# ============================================================= 
+    def __init__(self, detail: str = "Embedding service error", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
 
-class ConfigurationError(Exception):
-    """Raised when application settings are invalid at startup.
-    
-    Examples: missing requires env vars, invalid database URL,
-    OpenSearch host unreachable. Causes fast failure before
-    serving any requests.
-    """
 
+class LLMServiceError(ExternalServiceError):
+    """Base exception for LLM provider errors (Ollama, Gemini)."""
+
+    def __init__(self, detail: str = "LLM service error", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
+
+
+class LLMConnectionError(LLMServiceError):
+    """Raised when the LLM service is unreachable."""
+
+    def __init__(self, detail: str = "LLM service unreachable", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
+
+
+class LLMTimeoutError(LLMServiceError):
+    """Raised when LLM generation exceeds the timeout."""
+
+    def __init__(self, detail: str = "LLM generation timed out", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
+
+
+class RerankerError(ExternalServiceError):
+    """Raised for cross-encoder re-ranking errors."""
+
+    def __init__(self, detail: str = "Re-ranker error", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
+
+
+class SearchEngineError(ExternalServiceError):
+    """Raised for OpenSearch client and indexing errors."""
+
+    def __init__(self, detail: str = "Search engine error", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
+
+
+class CacheServiceError(ExternalServiceError):
+    """Raised for Redis cache errors."""
+
+    def __init__(self, detail: str = "Cache service error", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
+
+
+# -- Pipeline --
+
+
+class PipelineError(PaperAlchemyError):
+    """Raised when an ingestion pipeline step fails."""
+
+    def __init__(self, detail: str = "Pipeline step failed", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
+
+
+# -- Configuration --
+
+
+class ConfigurationError(PaperAlchemyError):
+    """Raised when application settings are invalid at startup."""
+
+    def __init__(self, detail: str = "Invalid configuration", **kwargs) -> None:
+        super().__init__(detail, **kwargs)

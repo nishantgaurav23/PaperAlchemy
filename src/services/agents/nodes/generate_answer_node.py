@@ -1,252 +1,171 @@
+"""Answer generation node for citation-backed responses (S6.6).
+
+Takes relevant sources from the agent state, constructs a citation-enforcing
+prompt, invokes the LLM, and post-processes the output with S5.5 citation
+enforcement to ensure inline [N] references and a formatted source list.
 """
-What is needed:
-    The final node in the happy path. It takes the retrieved context from ToolMessage and the user's
-    query, formats GENERATE_ANSWER_PROMPT, calls the LLM, and returns the answer as an AIMessage. This
-    is the only node that uses temperature=runtime.context.temperature (default 0.7) - all other nodes
-    use 0.0
 
-Why it is needed:
-    All prior nodes (guardrail, grade, rewrite) produce routing decisions and metadata. This is the only
-    node that produces the answer the user actually sees. Without it, the graph completes but produces
-    no suseful output.
-
-    It is also the fallback terminal node when retrieve_node hits max_retrieval_attempts - in that case, context
-    is empty and the LLM acknowledges no paper were found rather than hallucinating.
-
-How it helps:
-
-Happy path (relevant docs found): 
-    context = "BERT uses bidirectional transformers... [paper text]"
-    question = "How does BERT work?"
-    -> LLM reads papers, synthesizes answer, cites arxiv IDs
-    -> AIMessage("BERT (Delvin et al., 2018) uses...") appended to state
-
-Degraded path (max_attempts / no relevant docs):
-    context = "" (empty)
-    -> node sets context = "No relevant documents found."
-    -> LLM honestly says it couldn't find papers
-    -> AIMessage("I couldn't find relevant papers...") appended to state
-
-Why start_generation() not start_span()
-
-    PaperAlchemy's LangfuseTracer exposes two different Langfuse primitives:
-    - start_span() → trace.span() — for general operations (retrieval, grading)
-    - start_generation() → trace.generation() — specifically for LLM calls, tracks token counts and model name in Langfuse's
-    generation view
-
-    Since this node calls llm.ainvoke(), using start_generation() gives richer observability — Langfuse shows token usage, model
-    name, and cost estimates. The reference uses create_span() for everything, but PaperAlchemy's client has the right tool for
-    LLM calls.
-________________________________________________________________________________________________________________
-What it does: Fnal node in the agentic RAG graph. Takes the retrieved paper context
-and user question, formats GENERATE_ANSWER_PROMPT, calls the LLM, and returns the 
-answer as an AIMessage. The graph ends after this node.
-
-  ┌──────────────────────────────────┬──────────────────────────────────────────────────────────────┐
-  │             Symbol               │                           Purpose                            │
-  ├──────────────────────────────────┼──────────────────────────────────────────────────────────────┤
-  │ ainvoke_generate_answer_step     │ Async node — LLM synthesises answer from retrieved context   │
-  └──────────────────────────────────┴──────────────────────────────────────────────────────────────┘
-
-Why free-form output (not structured):
-    Guardrail and grading need structured JSON so routing decisions are type-safe.
-    The answer is free-form text — constraining it to a JSON schema would force
-    the LLM to put the answer inside a field, adding an unwanted wrapper.
-    response.content gives the raw answer string directly.
-
-Why temperature=runtime.context.temperature (not hardcoded):
-    Answer generation is the only node where temperature matters for quality.
-    Users may want lower temperature for factual, citation-heavy answers or
-    higher for more narrative explanations. Making it configurable via
-    GraphConfig → Context allows per-request control without changing node code.
-
-Why context fallback to "No relevant documents found.":
-    Empty string passed to the LLM prompt makes the {context} placeholder blank,
-    confusing small models. An explicit "no documents" string tells the LLM to
-    acknowledge the gap rather than hallucinate, producing a more honest response.
-
-Why start_generation() instead of start_span():
-    PaperAlchemy's LangfuseTracer.start_generation() maps to trace.generation()
-    in the Langfuse SDK — a special span type for LLM calls that tracks model
-    name and token usage. The Langfuse UI shows these in a dedicated generations
-    view with cost estimates. start_span() would lose this metadata.
-
-__________________________________________________________________________________________________________
-Execution trace
-
-state["messages"] = [
-    HumanMessage("How does BERT work?"),
-    AIMessage(tool_calls=[{retrieve_papers}]),
-    ToolMessage('[{"page_content": "BERT uses bidirectional..."}]'),
-]
-state["relevant_sources"] = [SourceItem(arxiv_id="1810.04805", ...)]
-
-Step 1: question = "How does BERT work?"
-Step 2: context = '[{"page_content": "BERT uses bidirectional..."}]'
-Step 3: sources_count = 1
-Step 4: context is not empty → use as-is
-Step 5: start_generation(model="llama3.2:1b", input={question, context_length=...})
-Step 6: format GENERATE_ANSWER_PROMPT(context=..., question=...)
-Step 7: get_langchain_model(temperature=0.7)  ← context.temperature
-Step 8: llm.ainvoke(prompt)
-        → AIMessage(content="BERT (Devlin et al., 2018) is a bidirectional...")
-Step 9: answer = "BERT (Devlin et al., 2018) is a bidirectional..."
-Step 10: update_generation(output=answer, metadata={execution_time_ms=...})
-Step 11: return {"messages": [AIMessage(content="BERT (Devlin et al., 2018)...")]}
-
-add_messages appends →
-state["messages"][-1] = AIMessage("BERT (Devlin et al., 2018)...")
-
-Graph routes → END
-AgenticRAGService._extract_answer() reads last AIMessage → returns to user
-"""
+from __future__ import annotations
 
 import logging
-import time
-from typing import Dict, List
+from typing import Any
 
-from langchain_core.messages import AIMessage
-from langgraph.runtime import Runtime
-
-from src.services.agents.context import Context
-from src.services.agents.prompts import GENERATE_ANSWER_PROMPT
+from langchain_core.messages import AIMessage, HumanMessage
+from src.services.agents.context import AgentContext
+from src.services.agents.models import SourceItem
 from src.services.agents.state import AgentState
-from src.services.agents.nodes.utils import get_latest_context, get_latest_query
+from src.services.rag.citation import enforce_citations
+from src.services.rag.models import RAGResponse, SourceReference
 
 logger = logging.getLogger(__name__)
 
-async def ainvoke_generate_answer_step(
-        state: AgentState,
-        runtime: Runtime[Context],
-) -> Dict[str, List[AIMessage]]:
-    """Async node: generate the final answer using retrieved paper context.
+NO_SOURCES_MESSAGE = (
+    "I don't have papers on that topic in my knowledge base. "
+    "Please try rephrasing your question or searching for a different topic."
+)
 
-    What it does:
-        1. Reads the user question and retrieved context from state.messages
-        2. Falls back to "No relevant documents found." if context is empty
-        3. Formats GENERATE_ANSWER_PROMPT with context + question
-        4. Calls ChatOllama (free-form, no structured output)
-        5. Extracts response.content as the answer string
-        6. Returns {"messages": [AIMessage(content=answer)]}
-        7. Records a Langfuse generation span with token tracking
+GENERATION_PROMPT = """You are a research assistant that answers questions using ONLY the provided academic paper excerpts.
+You MUST cite sources inline using [N] notation (e.g., [1], [2]) corresponding to the numbered sources below.
+Every factual claim MUST have at least one citation. Do NOT fabricate information or cite sources not provided.
 
-    Why it is needed:
-        Every path through the graph (relevant docs found, max attempts reached,
-        out_of_scope fallback skipped) eventually needs a terminal answer node.
-        This is the canonical answer producer for in-scope queries.
+If the sources do not contain enough information to answer the question, say so honestly.
 
-    How it helps:
-        - Free-form LLM output → natural, well-structured prose answers
-        - GENERATE_ANSWER_PROMPT instructs the LLM to cite arxiv IDs — maps
-        directly to SourceItem.arxiv_id in the API response
-        - Empty context handled explicitly → honest "not found" responses
-        - temperature from context → configurable per-request quality/speed tradeoff
-        - Fallback on LLM failure → always returns something to the user
+## Sources
+
+{sources_block}
+
+## Question
+
+{query}
+
+## Instructions
+
+1. Answer the question using ONLY information from the sources above.
+2. Use inline citations [1], [2], etc. for every claim.
+3. Be concise but thorough.
+4. Do NOT add a "Sources" section at the end — it will be appended automatically."""
+
+
+def source_items_to_references(sources: list[SourceItem]) -> list[SourceReference]:
+    """Convert agent SourceItems to RAG SourceReferences with 1-based indices."""
+    return [
+        SourceReference(
+            index=i + 1,
+            arxiv_id=s.arxiv_id,
+            title=s.title,
+            authors=s.authors,
+            arxiv_url=s.url,
+            chunk_text=s.chunk_text,
+            score=s.relevance_score,
+        )
+        for i, s in enumerate(sources)
+    ]
+
+
+def build_generation_prompt(query: str, sources: list[SourceItem]) -> str:
+    """Build the generation prompt with numbered source chunks.
 
     Args:
-        state: Current agent state (reads messages for query and context)
-        runtime: Runtime context (reads ollama_client, model_name, temperature,
-                relevant_sources count, langfuse config)
+        query: The user's research question.
+        sources: Relevant source documents to include in the prompt.
 
     Returns:
-        Partial state dict: {"messages": [AIMessage(content=answer)]}
-        The add_messages reducer appends this — graph then routes to END.
+        Formatted prompt string with numbered sources and citation instructions.
+    """
+    source_lines = []
+    for i, source in enumerate(sources, 1):
+        source_lines.append(f"[{i}] {source.title} (arxiv: {source.arxiv_id})\n{source.chunk_text}")
+    sources_block = "\n\n".join(source_lines)
+
+    return GENERATION_PROMPT.format(sources_block=sources_block, query=query)
+
+
+def _get_effective_query(state: AgentState) -> str:
+    """Get the best available query: rewritten_query > original_query > last HumanMessage."""
+    if state.get("rewritten_query"):
+        return state["rewritten_query"]
+    if state.get("original_query"):
+        return state["original_query"]
+    for msg in reversed(state.get("messages", [])):
+        if isinstance(msg, HumanMessage):
+            return str(msg.content)
+    return ""
+
+
+async def ainvoke_generate_answer_step(
+    state: AgentState,
+    context: AgentContext,
+) -> dict[str, Any]:
+    """Generate a citation-backed answer from relevant sources.
+
+    Workflow:
+    1. If no relevant sources → return fallback "no papers" message.
+    2. Build citation-enforcing prompt with numbered source chunks.
+    3. Invoke LLM to generate answer.
+    4. Post-process with enforce_citations() from S5.5.
+    5. Return AIMessage with formatted answer + citation metadata.
+
+    Args:
+        state: Current agent state (reads relevant_sources, messages, queries).
+        context: Runtime context (reads llm_provider, model_name, temperature).
+
+    Returns:
+        Partial state dict with messages (AIMessage) and metadata (citation_validation).
     """
     logger.info("NODE: generate_answer")
-    start_time = time.time()
 
-    # ── Read query and context ──────────────────────────────────────── 
-    question = get_latest_query(state["messages"])
-    context = get_latest_context(state["messages"])
+    relevant_sources: list[SourceItem] = state.get("relevant_sources", [])
 
-    sources_count = len(state.get("relevant_sources", []))
-    # Explicit empty-context message prevents the LLM seeing a blank {context}
-    # placeholder, which causes small models to hallucinate citations.
-    if not context:
-          logger.warning("No context available for answer generation — using empty-context message")
-          context = "No relevant documents found."
+    # FR-5: No-sources fallback
+    if not relevant_sources:
+        logger.info("No relevant sources — returning fallback message")
+        return {
+            "messages": [AIMessage(content=NO_SOURCES_MESSAGE)],
+            "metadata": {"citation_validation": {"is_valid": True, "reason": "no_sources"}},
+        }
 
-    logger.debug(f"Generating answer for: {question[:80]}... | context: {len(context)} chars")
+    query = _get_effective_query(state)
+    logger.debug("Generating answer for query: %s", query[:100])
 
-    # ── Start Langfuse generation span ────────────────────────────────
-    # Use start_generation (not start_span) — maps to trace.generation()
-    # in Langfuse SDK, which tracks token usage and cost in the generations view.
-    generation = None
-    if runtime.context.langfuse_enabled and runtime.context.trace:
-        try:
-            generation = runtime.context.langfuse_tracer.start_generation(
-                trace=runtime.context.trace,
-                name="answer_generation",
-                model=runtime.context.model_name,
-                input={
-                    "question": question,
-                    "context_length": len(context),
-                    "sources_count": sources_count,
-                },
-                metadata={
-                    "node": "generate_answer",
-                    "temperature": runtime.context.temperature,
-                },
-            )
-        except Exception as e:
-            logger.warning(f"Failed to create Langfuse generation span: {e}")
+    # FR-1: Build prompt
+    prompt = build_generation_prompt(query, relevant_sources)
 
-    # ── LLM free-form generation ──────────────────────────────────────
+    # FR-2: Invoke LLM
     try:
-        answer_prompt = GENERATE_ANSWER_PROMPT.format(
-            context=context,
-            question=question,
+        llm = context.llm_provider.get_langchain_model(
+            model=context.model_name,
+            temperature=context.temperature,
         )
-
-        # temperature from context — configurable per request via GraphConfig
-        llm = runtime.context.ollama_client.get_langchain_model(
-            model=runtime.context.model_name,
-            temperature=runtime.context.temperature,
-        )
-
-        logger.info("Invoking LLM for answer generation")
-        response = await llm.ainvoke(answer_prompt)
-
-        # ChatOllama always returns an AIMessage — .content is the answer string
-        answer = response.content if hasattr(response, "content") else str(response)
-        logger.info(f"Answer generated: {len(answer)} chars")
-
-        # ── Close generation span: success ────────────────────────────
-        if generation:
-            execution_time = (time.time() - start_time) * 1000
-            runtime.context.langfuse_tracer.update_generation(
-                generation,
-                output=answer,
-                metadata={
-                    "execution_time_ms": execution_time,
-                    "answer_length": len(answer),
-                    "sources_used": sources_count,
-                    "context_length": len(context),
-                },
-            )
-
+        response = await llm.ainvoke(prompt)
+        raw_answer = response.content if hasattr(response, "content") else str(response)
     except Exception as e:
-        logger.error(f"LLM answer generation failed: {e}")
+        logger.error("LLM generation failed: %s", e)
+        return {
+            "messages": [AIMessage(content="I was unable to generate an answer due to a processing error. Please try again.")],
+            "metadata": {"citation_validation": {"is_valid": False, "error": str(e)}},
+        }
 
-        answer = (
-            "I apologize — I encountered an error while generating an answer. "
-            f"Error: {e}\n\n"
-            "Please try again or rephrase your question."
-        )
+    # FR-3: Citation post-processing
+    source_refs = source_items_to_references(relevant_sources)
+    rag_response = RAGResponse(answer=raw_answer, sources=source_refs, query=query)
+    citation_result = enforce_citations(rag_response)
 
-        # ── Close generation span: error ──────────────────────────────
-        if generation:
-            execution_time = (time.time() - start_time) * 1000
-            runtime.context.langfuse_tracer.update_generation(
-                generation,
-                output=answer,
-                metadata={
-                    "execution_time_ms": execution_time,
-                    "error": str(e),
-                    "fallback": True,
-                },
-            )
+    # FR-4: Build state update
+    logger.info(
+        "Generation complete: citations valid=%s, coverage=%.1f%%",
+        citation_result.validation.is_valid,
+        citation_result.validation.citation_coverage * 100,
+    )
 
-    return {"messages": [AIMessage(content=answer)]}
-    
-
+    return {
+        "messages": [AIMessage(content=citation_result.formatted_answer)],
+        "metadata": {
+            "citation_validation": {
+                "is_valid": citation_result.validation.is_valid,
+                "valid_citations": citation_result.validation.valid_citations,
+                "invalid_citations": citation_result.validation.invalid_citations,
+                "uncited_sources": citation_result.validation.uncited_sources,
+                "citation_coverage": citation_result.validation.citation_coverage,
+            },
+        },
+    }

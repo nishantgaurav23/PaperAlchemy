@@ -1,62 +1,27 @@
+"""OpenSearch client supporting BM25, vector, and hybrid search with native RRF.
+
+Wraps opensearch-py with PaperAlchemy-specific logic: index management,
+query building, result formatting, and chunk lifecycle.
 """
-Unified OpenSearch client supporting BM25, vector, and hybrid search.
 
-Why it's needed:
-    OpenSearch is the search engine at the heart of PaperAlchemy. This client
-    wraps the opensearch-py library with PaperAlchemy-specific logic: index
-    management, query building, result formatting, and chunk lifecycle. Without
-    this abstraction, every router and notebook would need raw OpenSearch API
-    calls with duplicated error handling.
-
-What it does:
-    - health_check(): Verifies cluster is reachable and healthy (green/yellow)
-    - setup_indices(): Creates the hybrid index + RRF pipeline on startup
-    - search_papers(): BM25 keyword search using QueryBuilder
-    - search_unified(): Routes to BM25 or hybrid based on whether embeddings
-      are provided. This is the main search entry point for Week 4+.
-    - search_chunks_vectors(): Pure KNN vector search on embeddings
-    - _search_hybrid_native(): Combines BM25 + KNN via OpenSearch's native
-      hybrid query with RRF (Reciprocal Rank Fusion) pipeline
-    - bulk_index_chunks(): Bulk indexes chunks with embeddings
-    - delete_paper_chunks(): Deletes all chunks for a paper (for re-indexing)
-    - get_chunks_by_paper(): Retrieves chunks sorted by chunk_index
-    - get_index_stats(): Returns document count, size, and index existence
-
-How it helps:
-    - Single client for all search modes (BM25, vector, hybrid)
-    - Routers call high-level methods, not raw OpenSearch APIs
-    - Error handling is centralized (all methods catch and log exceptions)
-    - Index lifecycle (create, delete, stats) in one place
-    - RRF pipeline setup happens once at startup, not per-query
-"""
+from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from opensearchpy import OpenSearch
-
+from opensearchpy import OpenSearch, helpers
 from src.config import Settings
-from .index_config import (                                                                                                      
-      ARXIV_PAPERS_CHUNKS_MAPPING,                                                                                                 
-      HYBRID_RRF_PIPELINE,                                                                                                         
-  )                                                                                                                                
-from .query_builder import QueryBuilder                                                                                          
-                                                                                                                                
+
+from .index_config import ARXIV_PAPERS_CHUNKS_MAPPING, HYBRID_RRF_PIPELINE
+from .query_builder import QueryBuilder
+
 logger = logging.getLogger(__name__)
 
+
 class OpenSearchClient:
-    """OpenSearch client supporting BM25 and hybrid search with native RRF."""  
+    """OpenSearch client for BM25 and hybrid search with native RRF."""
 
-    def __init__(self, host: str, settings: Settings): 
-
-        """
-        Initialize OpenSearch client
-
-        Args:
-            host: OpenSearch host URL
-            settings: Application settings
-        """
-
+    def __init__(self, host: str, settings: Settings):
         self.host = host
         self.settings = settings
         self.index_name = f"{settings.opensearch.index_name}-{settings.opensearch.chunk_index_suffix}"
@@ -65,326 +30,208 @@ class OpenSearchClient:
             hosts=[host],
             use_ssl=False,
             verify_certs=False,
-            ssl_show_warn=False
+            ssl_show_warn=False,
         )
-        logger.info(f"OpenSearch client initialized with host: {host}")
+        logger.info("OpenSearch client initialized with host: %s", host)
+
+    # ── Health ──────────────────────────────────────────────────────
 
     def health_check(self) -> bool:
-        """Check if OpenSearch cluster is healthy."""
+        """Check if OpenSearch cluster is healthy (green or yellow)."""
         try:
             health = self.client.cluster.health()
-            return health["status"] in ["green", "yellow"]
+            return health["status"] in ("green", "yellow")
         except Exception as e:
-            logging.error(f"Health check failed: {e}")
+            logger.error("Health check failed: %s", e)
             return False
-        
-    def get_index_stats(self) -> Dict[str, Any]:
-        """Get statistics for the hybrid index."""
-        try:
-            if not self.client.indices.exists(index=self.index_name):
-                return {
-                    "index_name": self.index_name,
-                    "exists": False,
-                    "document_count": 0
-                }
-            stats_response = self.client.indices.stats(index=self.index_name)
-            index_stats = stats_response["indices"][self.index_name]["total"]
 
-            return {
-                "index_name": self.index_name,
-                "exists": True,
-                "document_count": index_stats["docs"]["count"],
-                "deleted_count": index_stats["docs"]["deleted"],
-                "size_in_bytes": index_stats["store"]["size_in_bytes"],
-            }
-        except Exception as e:
-            logger.error(f"Error getting index stats: {e}")
-            return {
-                "index_name": self.index_name,
-                "exists": False,
-                "document_count": 0,
-                "error": str(e)
-            }
-        
-    def setup_indices(self, force: bool = False) -> Dict[str, bool]:
-        """Setup the hybrid search index and RRF pipeline"""
-        results = {}
-        results["hybrid_index"] = self._create_hybrid_index(force)
-        results["rrf_pipeline"] = self._create_rrf_pipeline(force)
-        return results
-    
+    # ── Index & Pipeline Setup ──────────────────────────────────────
+
+    def setup_indices(self, force: bool = False) -> dict[str, bool]:
+        """Setup the hybrid search index and RRF pipeline."""
+        return {
+            "hybrid_index": self._create_hybrid_index(force),
+            "rrf_pipeline": self._create_rrf_pipeline(force),
+        }
+
     def _create_hybrid_index(self, force: bool = False) -> bool:
-        """
-        Create hybrid index for all search types (BM25, vector, hybrid).
-
-        Args:
-            force: If True, recreate index even if it exists
-
-        Returns:
-            True if created, False if already exists
-        """
+        """Create hybrid index. Returns True if created, False if already exists."""
         try:
             if force and self.client.indices.exists(index=self.index_name):
                 self.client.indices.delete(index=self.index_name)
-                logger.info(f"Deleted exisiting hybrid index: {self.index_name}")
+                logger.info("Deleted existing hybrid index: %s", self.index_name)
 
             if not self.client.indices.exists(index=self.index_name):
-                self.client.indices.create(
-                    index=self.index_name,
-                    body=ARXIV_PAPERS_CHUNKS_MAPPING
-                )
-                logger.info(f"Created hybrid index: {self.index_name}")
+                self.client.indices.create(index=self.index_name, body=ARXIV_PAPERS_CHUNKS_MAPPING)
+                logger.info("Created hybrid index: %s", self.index_name)
                 return True
-            logger.info(f"Hybrid index already exists: {self.index_name}")
+
+            logger.info("Hybrid index already exists: %s", self.index_name)
             return False
         except Exception as e:
-            logger.error(f"Error creating hybrid index: {e}")
+            logger.error("Error creating hybrid index: %s", e)
             raise
 
     def _create_rrf_pipeline(self, force: bool = False) -> bool:
-        """
-        Create RRF search pipeline for natie hybrid search.
-
-        Args:
-            force: If True, recreate pipeline even it exists
-
-        Returns:
-            True if created, False if already exists
-        """
+        """Create RRF search pipeline. Returns True if created."""
         try:
             pipeline_id = HYBRID_RRF_PIPELINE["id"]
+
             if force:
                 try:
                     self.client.ingest.get_pipeline(id=pipeline_id)
                     self.client.ingest.delete_pipeline(id=pipeline_id)
-                    logger.info(f"Deleted existing RRF pipeline: {pipeline_id}")
+                    logger.info("Deleted existing RRF pipeline: %s", pipeline_id)
                 except Exception:
                     pass
+
             try:
                 self.client.ingest.get_pipeline(id=pipeline_id)
-                logger.info(f"RRF pipeline already exists: {pipeline_id}")
+                logger.info("RRF pipeline already exists: %s", pipeline_id)
                 return False
             except Exception:
                 pass
 
             pipeline_body = {
                 "description": HYBRID_RRF_PIPELINE["description"],
-                "phase_results_processors": HYBRID_RRF_PIPELINE["phase_results_processors"]
+                "phase_results_processors": HYBRID_RRF_PIPELINE["phase_results_processors"],
             }
-
-            self.client.transport.perform_request(
-                "PUT",
-                f"/_search/pipeline/{pipeline_id}",
-                body=pipeline_body
-            )
-
-            logger.info(f"Created RRF searh pipeline: {pipeline_id}")
+            self.client.transport.perform_request("PUT", f"/_search/pipeline/{pipeline_id}", body=pipeline_body)
+            logger.info("Created RRF search pipeline: %s", pipeline_id)
             return True
         except Exception as e:
-            logger.error(f"Error creating RRF pipeline: {e}")
+            logger.error("Error creating RRF pipeline: %s", e)
             raise
 
+    # ── Search Methods ──────────────────────────────────────────────
+
     def search_papers(
-            self,
-            query: str,
-            size: int = 10,
-            from_: int = 0,
-            categories: Optional[List[str]] = None,
-            latest: bool = True
-    ):
-        """BM25 search for papers."""
-        return self._search_bm25_only(
-            query=query,
-            size=size,
-            from_=from_,
-            categories=categories,
-            latest=latest
-        )
-    
+        self,
+        query: str,
+        size: int = 10,
+        from_: int = 0,
+        categories: list[str] | None = None,
+        latest: bool = True,
+    ) -> dict[str, Any]:
+        """BM25 keyword search for papers/chunks."""
+        return self._search_bm25_only(query=query, size=size, from_=from_, categories=categories, latest=latest)
+
     def search_chunks_vectors(
-            self,
-            query_embedding: List[float],
-            size: int = 10,
-            categories: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
-        """
-        Pure vector search on chunks.
-
-        Args:
-            query_embedding: Query embedding vector
-            size: Number of results
-            categories: Optional category filter
-
-        Returns:
-            Search results
-        """
+        self,
+        query_embedding: list[float],
+        size: int = 10,
+        categories: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Pure KNN vector search on chunk embeddings."""
         try:
-            # Build filter
-            filter_clause = []
-            if categories:
-                filter_clause.append({"terms": {"categories": categories}})
-
-            search_body = {
+            search_body: dict[str, Any] = {
                 "size": size,
                 "query": {
                     "knn": {
                         "embedding": {
                             "vector": query_embedding,
-                            "k": size
+                            "k": size,
                         }
                     }
                 },
                 "_source": {"excludes": ["embedding"]},
             }
 
-            if filter_clause:
+            if categories:
                 search_body["query"] = {
                     "bool": {
                         "must": [search_body["query"]],
-                        "filter": filter_clause
+                        "filter": [{"terms": {"categories": categories}}],
                     }
                 }
-            
+
             response = self.client.search(index=self.index_name, body=search_body)
-
-            results = {"total": response["hits"]["total"]["value"], "hits": []}
-
-            for hit in response["hits"]["hits"]:
-                chunk = hit["_source"]
-                chunk["score"] = hit["_score"]
-                chunk["chunk_id"] = hit["_id"]
-                results["hits"].append(chunk)
-
-            return results
+            return self._format_results(response)
         except Exception as e:
-            logger.error(f"Vector search error: {e}")
+            logger.error("Vector search error: %s", e)
             return {"total": 0, "hits": []}
-        
+
     def search_unified(
-            self,
-            query: str,
-            query_embedding: Optional[List[float]] = None,
-            size: int = 10,
-            from_: int = 0,
-            categories: Optional[List[str]] = None,
-            latest: bool = False,
-            use_hybrid: bool = True,
-            min_score: float = 0.0,
-    ) -> Dict[str, Any]:
-        """
-        Unified search method supporting BM25, and hybrid mode.
-
-        Args:
-            query: Text query for search
-            query_embedding: Optional embedding for vector/hybrid search
-            size: Number of results to return
-            from_: Offset for pagination
-            categories: Optional category filter
-            latest: Sort by date instead of felevance
-            use_hybrid: If True and embedding provided, use hybrid search
-            min_score: Minimum score threshold
-
-        Returns:
-            Search results
-        """
+        self,
+        query: str,
+        query_embedding: list[float] | None = None,
+        size: int = 10,
+        from_: int = 0,
+        categories: list[str] | None = None,
+        latest: bool = False,
+        use_hybrid: bool = True,
+        min_score: float = 0.0,
+    ) -> dict[str, Any]:
+        """Unified search: routes to BM25 or hybrid based on inputs."""
         try:
-            # If no embedding provided or hybrid disabled, use BM25 only
             if not query_embedding or not use_hybrid:
                 return self._search_bm25_only(
-                    query=query,
-                    size=size,
-                    from_=from_,
-                    categories=categories,
-                    latest=latest,
-                    min_score=min_score,
+                    query=query, size=size, from_=from_, categories=categories, latest=latest, min_score=min_score
                 )
-            
-            # Use native OpenSearch hybrid search with RRF pipeline
             return self._search_hybrid_native(
-                query=query,
-                query_embedding=query_embedding,
-                size=size,
-                categories=categories,
-                min_score=min_score
+                query=query, query_embedding=query_embedding, size=size, categories=categories, min_score=min_score
             )
-        
         except Exception as e:
-            logger.error(f"Unified search error: {e}")
+            logger.error("Unified search error: %s", e)
             return {"total": 0, "hits": []}
-        
+
+    def search_chunks_hybrid(
+        self,
+        query: str,
+        query_embedding: list[float],
+        size: int = 10,
+        categories: list[str] | None = None,
+        min_score: float = 0.0,
+    ) -> dict[str, Any]:
+        """Hybrid search combining BM25 and vector via native RRF."""
+        return self._search_hybrid_native(
+            query=query, query_embedding=query_embedding, size=size, categories=categories, min_score=min_score
+        )
+
+    # ── Private Search Implementations ──────────────────────────────
+
     def _search_bm25_only(
-            self,
-            query: str,
-            size: int,
-            from_: int,
-            categories: Optional[List[str]],
-            latest: bool,
-            min_score: float = 0.0,
-    ) -> Dict[str, Any]:
+        self,
+        query: str,
+        size: int,
+        from_: int = 0,
+        categories: list[str] | None = None,
+        latest: bool = False,
+        min_score: float = 0.0,
+    ) -> dict[str, Any]:
         """Pure BM25 search implementation."""
         builder = QueryBuilder(
-            query = query,
+            query=query,
             size=size,
             from_=from_,
             categories=categories,
             latest_papers=latest,
-            search_chunks=True, # Enable chunk search mode
+            search_chunks=True,
         )
         search_body = builder.build()
-
         response = self.client.search(index=self.index_name, body=search_body)
+        return self._format_results(response, min_score=min_score)
 
-        results = {"total": response["hits"]["total"]["value"], "hits": []}
-
-        for hit in response["hits"]["hits"]:
-            if hit["_score"] < min_score:
-                continue
-
-            chunk = hit["_source"]
-            chunk["score"] = hit["_score"]
-            chunk["chunk_id"] = hit["_id"]
-
-            if "highlight" in hit:
-                chunk["highlights"] = hit["highlight"]
-
-            results["hits"].append(chunk)
-
-        logger.info(f"BM25 search for '{query[:50]}...' returned {len(results['hits'])} results (min_score={min_score})")
-        return results
-    
     def _search_hybrid_native(
-            self,
-            query: str,
-            query_embedding: List[float],
-            size: int,
-            categories: Optional[List[str]],
-            min_score: float
-    ) -> Dict[str, Any]:
+        self,
+        query: str,
+        query_embedding: list[float],
+        size: int,
+        categories: list[str] | None = None,
+        min_score: float = 0.0,
+    ) -> dict[str, Any]:
         """Native OpenSearch hybrid search with RRF pipeline."""
         builder = QueryBuilder(
-            query=query,
-            size=size*2,
-            from_=0,
-            categories=categories,
-            latest_papers=False,
-            search_chunks=True
+            query=query, size=size * 2, from_=0, categories=categories, latest_papers=False, search_chunks=True
         )
         bm25_search_body = builder.build()
-
         bm25_query = bm25_search_body["query"]
 
         hybrid_query = {
             "hybrid": {
                 "queries": [
                     bm25_query,
-                    {
-                        "knn": {
-                            "embedding": {
-                                "vector": query_embedding,
-                                "k": size * 2
-                            }
-                        }
-                    }
+                    {"knn": {"embedding": {"vector": query_embedding, "k": size * 2}}},
                 ]
             }
         }
@@ -396,137 +243,67 @@ class OpenSearchClient:
             "highlight": bm25_search_body["highlight"],
         }
 
-        # Execute search with RRF pipeline
         response = self.client.search(
-            index=self.index_name,
-            body=search_body,
-            params={"search_pipeline": HYBRID_RRF_PIPELINE["id"]}
+            index=self.index_name, body=search_body, params={"search_pipeline": HYBRID_RRF_PIPELINE["id"]}
         )
+        result = self._format_results(response, min_score=min_score)
+        result["total"] = len(result["hits"])
+        return result
 
-        results = {"total": response["hits"]["total"]["value"], "hits": []}
+    # ── Result Formatting ───────────────────────────────────────────
 
+    @staticmethod
+    def _format_results(response: dict[str, Any], min_score: float = 0.0) -> dict[str, Any]:
+        """Format OpenSearch response into a standardized result dict."""
+        results: dict[str, Any] = {"total": response["hits"]["total"]["value"], "hits": []}
         for hit in response["hits"]["hits"]:
             if hit["_score"] < min_score:
                 continue
-
             chunk = hit["_source"]
             chunk["score"] = hit["_score"]
             chunk["chunk_id"] = hit["_id"]
-
             if "highlight" in hit:
                 chunk["highlights"] = hit["highlight"]
-
             results["hits"].append(chunk)
-
-        results["total"] = len(results["hits"])
-        logger.info(f"Native hybrid search for '{query[:50]}...' returned {results['total']} results")
         return results
-    
-    def search_chunks_hybrid(
-            self,
-            query: str,
-            query_embedding: List[float],
-            size: int = 10,
-            categories: Optional[List[str]] = None,
-            min_score: float = 0.0,
-    ) -> Dict[str, Any]:
-        """Hybrid search combining BM25 and vector similarity using native RRF."""
-        return self._search_hybrid_native(
-            query=query,
-            query_embedding=query_embedding,
-            size=size,
-            categories=categories,
-            min_score=min_score
-        )
-    
-    def _index_chunk(self, chunk_data: Dict[str, Any], embedding: List[float]) -> bool:
-        """
-        Index a single chunk with its embedding.
 
-        Args:
-            chunk_data: Chunk data dictionary
-            embedding: Embedding vector
+    # ── Bulk Indexing ───────────────────────────────────────────────
 
-        Returns:
-            True if successful
-        """
-        try:
-            chunk_data["embedding"] = embedding
-
-            response = self.client.index(
-                index=self.index_name,
-                body=chunk_data,
-                refresh=True
-            )
-
-            return response["result"] in ["created", "updated"]
-        except Exception as e:
-            logging.error(f"Error indexing chunk: {e}")
-            return False
-        
-    def bulk_index_chunks(self, chunks: List[Dict[str, Any]]) -> Dict[str, int]:
-        """
-        Bulk index multiple chunks with embeddings.
-
-        Args:
-            chunks: List of dicts with 'chunk_data' and 'embedding'
-
-        Returns:
-            Statisitcs
-        """
-        from opensearchpy import helpers
-
+    def bulk_index_chunks(self, chunks: list[dict[str, Any]]) -> dict[str, int]:
+        """Bulk index multiple chunks with embeddings."""
         try:
             actions = []
             for chunk in chunks:
                 chunk_data = chunk["chunk_data"].copy()
                 chunk_data["embedding"] = chunk["embedding"]
+                actions.append({"_index": self.index_name, "_source": chunk_data})
 
-                action = {"_index": self.index_name, "_source": chunk_data}
-                actions.append(action)
-            
             success, failed = helpers.bulk(self.client, actions, refresh=True)
-
-            logger.info(f"Bulk indexed {success} chunks, {len(failed)} failed")
+            logger.info("Bulk indexed %d chunks, %d failed", success, len(failed))
             return {"success": success, "failed": len(failed)}
         except Exception as e:
-            logger.error(f"Bulk chunk indexing error: {e}")
+            logger.error("Bulk chunk indexing error: %s", e)
             raise
 
-    def delete_paper_chunks(self, arxiv_id: str) -> bool:
-        """
-        Delete all chunks for a specific paper.
+    # ── Chunk Lifecycle ─────────────────────────────────────────────
 
-        Args:
-            arxiv_id: ArXiv ID of the paper
-        
-        Returns:
-            True if deletion was successful
-        """
+    def delete_paper_chunks(self, arxiv_id: str) -> bool:
+        """Delete all chunks for a specific paper."""
         try:
             response = self.client.delete_by_query(
                 index=self.index_name,
                 body={"query": {"term": {"arxiv_id": arxiv_id}}},
-                refresh=True
+                refresh=True,
             )
-
             deleted = response.get("deleted", 0)
-            logger.info(f"Deleted {deleted} chunks for paper {arxiv_id}")
-            return deleted>0
+            logger.info("Deleted %d chunks for paper %s", deleted, arxiv_id)
+            return deleted > 0
         except Exception as e:
-            logger.error(f"Error deleting chunks: {e}")
+            logger.error("Error deleting chunks: %s", e)
             return False
-        
-    def get_chunks_by_paper(self, arxiv_id: str) -> List[Dict[str, Any]]:
-        """
-        Get all chunks for a specif paper.
 
-        Args:
-            arxiv_id: Arxiv ID of the paper
-
-        Returns:
-            List of chunks sorted by chunk_index
-        """
+    def get_chunks_by_paper(self, arxiv_id: str) -> list[dict[str, Any]]:
+        """Get all chunks for a paper, sorted by chunk_index."""
         try:
             search_body = {
                 "query": {"term": {"arxiv_id": arxiv_id}},
@@ -534,18 +311,34 @@ class OpenSearchClient:
                 "sort": [{"chunk_index": "asc"}],
                 "_source": {"excludes": ["embedding"]},
             }
-
             response = self.client.search(index=self.index_name, body=search_body)
-
             chunks = []
             for hit in response["hits"]["hits"]:
                 chunk = hit["_source"]
                 chunk["chunk_id"] = hit["_id"]
                 chunks.append(chunk)
-
             return chunks
-        
-        
         except Exception as e:
-            logger.error(f"Error getting chunks: {e}")
+            logger.error("Error getting chunks: %s", e)
             return []
+
+    # ── Index Stats ─────────────────────────────────────────────────
+
+    def get_index_stats(self) -> dict[str, Any]:
+        """Get statistics for the chunk index."""
+        try:
+            if not self.client.indices.exists(index=self.index_name):
+                return {"index_name": self.index_name, "exists": False, "document_count": 0}
+
+            stats_response = self.client.indices.stats(index=self.index_name)
+            index_stats = stats_response["indices"][self.index_name]["total"]
+            return {
+                "index_name": self.index_name,
+                "exists": True,
+                "document_count": index_stats["docs"]["count"],
+                "deleted_count": index_stats["docs"]["deleted"],
+                "size_in_bytes": index_stats["store"]["size_in_bytes"],
+            }
+        except Exception as e:
+            logger.error("Error getting index stats: %s", e)
+            return {"index_name": self.index_name, "exists": False, "document_count": 0, "error": str(e)}

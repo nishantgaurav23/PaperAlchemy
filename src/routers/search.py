@@ -1,162 +1,87 @@
+"""Hybrid search endpoint: BM25 + KNN vector search with RRF fusion.
+
+Orchestrates the OpenSearch client (S4.1) and Jina embedding service (S4.3)
+to deliver hybrid search results. Gracefully degrades to BM25-only when
+embeddings fail.
 """
-BM25 keyword search router with GET and POST endpoints.
 
-Why it's needed:
-    This is the primary search interface for PaperAlchemy. It exposes
-    OpenSearch BM25 search through two HTTP methods:
-    - GET /api/v1/search?q=... for simple browser/curl queries
-    - POST /api/v1/search with JSON body for programmatic access with
-      filters, pagination, and sorting options.
-
-What it does:
-    - Validates query parameters and request body via Pydantic schemas
-    - Checks OpenSearch health before every search (returns 503 if down)
-    - Delegates to OpenSearchClient.search_papers() for BM25 scoring
-    - Formats raw OpenSearch hits into typed SearchHit models
-    - Returns SearchResponse with total count, hits, and search_mode
-
-How it helps:
-    - Two endpoints for different use cases (browser vs API client)
-    - Health guard prevents cryptic errors when OpenSearch is down
-    - Structured response makes frontend integration straightforward
-    - _format_hits() centralizes hit formatting (DRY — used by both endpoints)
-    - Error logging helps debug search failures in production
-"""
+from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Query
-from typing import Optional, List
+from fastapi import APIRouter, HTTPException
 
-from src.dependency import OpenSearchDep
-from src.schemas.api.search import SearchRequest, SearchHit, SearchResponse
+from src.dependency import EmbeddingsDep, OpenSearchDep
+from src.schemas.api.search import HybridSearchRequest, SearchHit, SearchResponse
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["Search"])
+router = APIRouter()
 
-@router.get("/search")
-async def search_papers_get(
-    opensearch_client: OpenSearchDep,
-    q: str = Query(..., min_length=1, max_length=500, description="Search query"),
-    size: int = Query(default=10, ge=1, le=50, description="Number of results"),
-    from_: int = Query(default=0, ge=0, alias="from", description="Pagination offset"),
-    categories: Optional[List[str]] = Query(default=None, description="Filter by categories"),
-    latest: bool = Query(default=False, description="Sort by date instead of relevance"),
 
-) -> SearchResponse:
-    """
-    Simple search endpoint using GET method.
+def _map_hits(raw_hits: list[dict]) -> list[SearchHit]:
+    """Transform raw OpenSearch hits into typed SearchHit models."""
+    return [SearchHit(**hit) for hit in raw_hits]
 
-    Use this for quick keyword searches from browser or curl.
-    """
-    try:
-        if not opensearch_client.health_check():
-            raise HTTPException(
-                status_code=503,
-                detail="Search servie is currently unavailable"
-            )
-        
-        results = opensearch_client.search_papers(
-            query=q,
-            size=size,
-            from_=from_,
-            categories=categories,
-            latest=latest,
-        )
 
-        hits = _format_hits(results)
-
-        return SearchResponse(
-            query=q,
-            total=results.get("total", 0),
-            hits=hits,
-            size=size,
-            **{"from": from_},
-            search_mode="bm25",
-        )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Search error: {e}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
-    
 @router.post("/search", response_model=SearchResponse)
-async def search_paper_post(
-    request: SearchRequest,
+async def hybrid_search(
+    request: HybridSearchRequest,
     opensearch_client: OpenSearchDep,
+    embeddings_service: EmbeddingsDep,
 ) -> SearchResponse:
+    """Hybrid search combining BM25 keyword search with KNN vector search.
+
+    Falls back to BM25-only if embedding generation fails.
+    Returns 503 if OpenSearch is unreachable.
     """
-    Advanced search endpoint using POST method.
+    # FR-6: Health check guard
+    if not opensearch_client.health_check():
+        raise HTTPException(status_code=503, detail="OpenSearch is unreachable")
 
-    Use this for complex queries with filters and pagination.
-    """
-    try:
-        if not opensearch_client.health_check():
-            raise HTTPException(
-                status_code=503,
-                detail="Search service is currently unavailable"
-            )
-        logger.info(
-            f"Search request: query='{request.query}', "
-            f"size={request.size}, categories={request.categories}"
-        )
+    # FR-3: Query embedding with graceful fallback
+    query_embedding: list[float] | None = None
+    search_mode = "bm25"
 
-        results = opensearch_client.search_papers(
-            query=request.query,
-            size=request.size,
-            from_=request.from_,
-            categories=request.categories,
-            latest= request.latest_papers,
-        )
+    if request.use_hybrid:
+        try:
+            query_embedding = await embeddings_service.embed_query(request.query)
+            search_mode = "hybrid"
+        except Exception as e:
+            logger.warning("Embedding failed, falling back to BM25: %s", e)
+            query_embedding = None
+            search_mode = "bm25"
 
-        hits = _format_hits(results)
+    # FR-4: Unified search execution
+    results = opensearch_client.search_unified(
+        query=request.query,
+        query_embedding=query_embedding,
+        size=request.size,
+        from_=request.from_,
+        categories=request.categories,
+        latest=request.latest_papers,
+        use_hybrid=request.use_hybrid and query_embedding is not None,
+        min_score=request.min_score or 0.0,
+    )
 
-        search_response = SearchResponse(
-            query=request.query,
-            total=results.get("total", 0),
-            hits=hits,
-            size=request.size,
-            **{"from": request.from_},
-            search_mode="bm25",
-        )
-        logger.info(f"Search completed: {search_response.total} results returned")
-        return search_response
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Search error: {e}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
-    
+    # FR-5: Result mapping
+    hits = _map_hits(results.get("hits", []))
 
-def _format_hits(results: dict) -> List[SearchHit]:
-    """
-    Format raw OpenSearch hits into SearchHit models.
+    return SearchResponse(
+        query=request.query,
+        total=results.get("total", 0),
+        hits=hits,
+        size=request.size,
+        from_=request.from_,
+        search_mode=search_mode,
+    )
 
-    Args:
-        results: Raw search results from OpenSearch client
 
-    Returns:
-        List of formatted SearhHit objects
-    """
-    hits = []
-    for hit in results.get("hits", []):
-        hits.append(
-            SearchHit(
-                arxiv_id=hit.get("arxiv_id", ""),
-                title=hit.get("title", ""),
-                authors=hit.get("authors"),
-                abstract=hit.get("abstract"),
-                categories=hit.get("categories"),
-                published_date=hit.get("published_date"),
-                pdf_url=hit.get("pdf_url"),
-                score=hit.get("score", 0.0),
-                highlights=hit.get("highlights"),
-                chunk_text=hit.get("chunk_text"),
-                chunk_id=hit.get("chunk_id"),
-                section_title=hit.get("section_title")
-            )
-        )
-
-    return hits
+@router.get("/search/health")
+async def search_health(opensearch_client: OpenSearchDep) -> dict:
+    """Quick health check for the search subsystem."""
+    healthy = opensearch_client.health_check()
+    return {
+        "status": "ok" if healthy else "degraded",
+        "opensearch": healthy,
+    }

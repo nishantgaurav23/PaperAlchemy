@@ -1,77 +1,56 @@
-"""
-Task 4: generate_daily_report
+"""Task 3: Daily report — aggregate stats and log a structured report."""
 
-Collects XCom stats from fetch + indexing tasks, queries the API
-health endpoint for live DB and OpenSearch totals, and logs a
-complete JSON summary report.
-
-No XCom output — this is a terminal observability task.
-"""
+from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 
 import httpx
 
-from arxiv_ingestion.common import HEALTH_URL, DEFAULT_TIMEOUT
+from .common import DEFAULT_TIMEOUT, HEALTH_URL
 
 logger = logging.getLogger(__name__)
 
 
-def generate_daily_report(ti, **context) -> dict:
-    """
-    Generate and log a JSON daily pipeline report.
+def generate_daily_report(ti, execution_date: datetime | None = None, **context) -> None:
+    """Aggregate fetch results and log a structured daily report.
 
-    Airflow task function — called by PythonOperator.
+    This task is observational — it does NOT raise on failure so the DAG
+    can still complete even if reporting encounters issues.
 
     Args:
-        ti: Airflow TaskInstance (injected by Airflow)
-        context: Airflow context dict
-
-    Returns:
-        Report dict (logged as JSON).
+        ti: Airflow TaskInstance (for XCom pull).
+        execution_date: Logical execution date from Airflow context.
+        context: Additional Airflow context (unused).
     """
-    # Pull stats pushed by Tasks 2 and 3
-    fetch_result = ti.xcom_pull(task_ids="fetch_daily_papers", key="fetch_result") or {}
-    index_result = ti.xcom_pull(task_ids="index_papers_hybrid", key="index_result") or {}
+    if execution_date is None:
+        execution_date = context.get("execution_date", datetime.utcnow())
 
-    # Query API health for live DB + OpenSearch totals
-    opensearch_doc_count = 0
+    fetch_result = ti.xcom_pull(task_ids="fetch_daily_papers", key="fetch_result") or {}
+
+    # Try to get system totals from health endpoint
+    health_info = {}
     try:
         response = httpx.get(HEALTH_URL, timeout=DEFAULT_TIMEOUT)
-        health = response.json()
-        opensearch_msg = health.get("services", {}).get("opensearch", {}).get("message", "")
-        # Message format: "Index 'arxiv-papers-chunks' with 42 documents"
-        if "with" in opensearch_msg and "documents" in opensearch_msg:
-            opensearch_doc_count = int(opensearch_msg.split("with")[1].split("documents")[0].strip())
+        response.raise_for_status()
+        health_info = response.json()
     except Exception as e:
-        logger.warning(f"Could not read OpenSearch doc count from health: {e}")
-
-    execution_date = context.get("execution_date", datetime.now(timezone.utc))
+        logger.warning("Could not reach health endpoint for report: %s", e)
 
     report = {
-        "execution_date": execution_date.isoformat(),
-        "target_date": fetch_result.get("target_date", "unknown"),
+        "execution_date": str(execution_date),
         "fetch": {
             "papers_fetched": fetch_result.get("papers_fetched", 0),
-            "papers_stored": fetch_result.get("papers_stored", 0),
             "pdfs_downloaded": fetch_result.get("pdfs_downloaded", 0),
             "pdfs_parsed": fetch_result.get("pdfs_parsed", 0),
-            "errors": len(fetch_result.get("errors", [])),
-            "processing_time_s": round(fetch_result.get("processing_time", 0.0), 1),
+            "papers_stored": fetch_result.get("papers_stored", 0),
+            "errors": fetch_result.get("errors", []),
+            "processing_time": fetch_result.get("processing_time", 0),
         },
-        "indexing": {
-            "papers_processed": index_result.get("papers_processed", 0),
-            "chunks_created": index_result.get("chunks_created", 0),
-            "chunks_indexed": index_result.get("chunks_indexed", 0),
-            "errors": len(index_result.get("errors", [])),
-        },
-        "totals": {
-            "chunks_in_opensearch": opensearch_doc_count,
-        },
+        "health": health_info,
         "status": "success" if not fetch_result.get("errors") else "partial",
     }
 
-    logger.info(f"Daily report:\n{json.dumps(report, indent=2)}")
-    return report
+    logger.info("=== Daily Ingestion Report ===")
+    logger.info(json.dumps(report, indent=2, default=str))

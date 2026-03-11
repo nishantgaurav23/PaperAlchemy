@@ -2,11 +2,12 @@ services:
   # ===========================================                                                     
   # API Service                                                                                     
   # ===========================================                                                     
-  api:                                                                                              
-    build: .                                                                                        
-    container_name: paperalchemy-api                                                                
-    ports:                                                                                          
-      - "8000:8000"                                                                                 
+  api:
+    build: .
+    container_name: paperalchemy-api
+    profiles: ["full"]
+    ports:
+      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -115,9 +116,10 @@ services:
   # ===========================================                                                     
   # OpenSearch Dashboards                                                                           
   # ===========================================                                                     
-  opensearch-dashboards:                                                                            
-    image: opensearchproject/opensearch-dashboards:2.19.0                                           
-    container_name: paperalchemy-dashboards                                                         
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.19.0
+    container_name: paperalchemy-dashboards
+    profiles: ["dev-tools"]
     ports:                                                                                          
       - "5602:5601"                                                                                 
     environment:                                                                                    
@@ -137,9 +139,10 @@ services:
   # ===========================================                                                     
   # Ollama (Local LLM)                                                                              
   # ===========================================                                                     
-  ollama:                                                                                           
-    image: ollama/ollama:0.11.2                                                                     
-    container_name: paperalchemy-ollama                                                             
+  ollama:
+    image: ollama/ollama:0.11.2
+    container_name: paperalchemy-ollama
+    profiles: ["full"]
     ports:                                                                                          
       - "11434:11434"                                                                               
     volumes:                                                                                        
@@ -157,9 +160,10 @@ services:
   # ===========================================                                                     
   # Apache Airflow                                                                                  
   # ===========================================                                                     
-  airflow:                                                                                          
-    image: apache/airflow:2.10.4-python3.12                                                         
-    container_name: paperalchemy-airflow                                                            
+  airflow:
+    image: apache/airflow:2.10.4-python3.12
+    container_name: paperalchemy-airflow
+    profiles: ["full"]
     depends_on:                                                                                     
       postgres:                                                                                     
         condition: service_healthy                                                                  
@@ -194,9 +198,10 @@ services:
   # ===========================================                                                     
   # ClickHouse (Langfuse Analytics)                                                                 
   # ===========================================                                                     
-  clickhouse:                                                                                       
-    image: clickhouse/clickhouse-server:24.8-alpine                                                 
-    container_name: paperalchemy-clickhouse                                                         
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    container_name: paperalchemy-clickhouse
+    profiles: ["langfuse"]
     environment:                                                                                    
       - CLICKHOUSE_DB=langfuse                                                                      
       - CLICKHOUSE_USER=langfuse                                                                    
@@ -217,10 +222,11 @@ services:
   # ===========================================                                                     
   # Langfuse PostgreSQL                                                                             
   # ===========================================                                                     
-  langfuse-postgres:                                                                                
-    image: postgres:17                                                                              
-    container_name: paperalchemy-langfuse-postgres                                                  
-    restart: unless-stopped                                                                         
+  langfuse-postgres:
+    image: postgres:17
+    container_name: paperalchemy-langfuse-postgres
+    profiles: ["langfuse"]
+    restart: unless-stopped
     environment:                                                                                    
       - POSTGRES_USER=langfuse                                                                      
       - POSTGRES_PASSWORD=langfuse                                                                  
@@ -242,9 +248,10 @@ services:
   # ===========================================                                                     
   # Langfuse Redis                                                                                  
   # ===========================================                                                     
-  langfuse-redis:                                                                                   
-    image: redis:7                                                                                  
-    container_name: paperalchemy-langfuse-redis                                                     
+  langfuse-redis:
+    image: redis:7
+    container_name: paperalchemy-langfuse-redis
+    profiles: ["langfuse"]
     restart: unless-stopped                                                                         
     command: --requirepass langfuse_redis_password                                                  
     ports:                                                                                          
@@ -260,9 +267,10 @@ services:
   # ===========================================                                                     
   # Langfuse MinIO (Object Storage)                                                                 
   # ===========================================                                                     
-  langfuse-minio:                                                                                   
-    image: minio/minio                                                                              
-    container_name: paperalchemy-langfuse-minio                                                     
+  langfuse-minio:
+    image: minio/minio
+    container_name: paperalchemy-langfuse-minio
+    profiles: ["langfuse"]
     restart: unless-stopped                                                                         
     entrypoint: sh                                                                                  
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'                                                                                             
@@ -286,9 +294,10 @@ services:
   # ===========================================                                                     
   # Langfuse Web (Monitoring Dashboard)                                                             
   # ===========================================                                                     
-  langfuse-web:                                                                                     
-    image: langfuse/langfuse:3                                                                      
-    container_name: paperalchemy-langfuse                                                           
+  langfuse-web:
+    image: langfuse/langfuse:3
+    container_name: paperalchemy-langfuse
+    profiles: ["langfuse"]
     restart: unless-stopped                                                                         
     depends_on:                                                                                     
       langfuse-postgres:                                                                            
@@ -354,6 +363,7 @@ services:
   langfuse-worker:
     image: langfuse/langfuse-worker:3
     container_name: paperalchemy-langfuse-worker
+    profiles: ["langfuse"]
     restart: unless-stopped
     depends_on:
       langfuse-postgres:
@@ -381,6 +391,12 @@ services:
       REDIS_HOST: langfuse-redis
       REDIS_PORT: 6379
       REDIS_AUTH: langfuse_redis_password
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3030/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     networks:
       - paperalchemy-network
 
@@ -390,6 +406,7 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: paperalchemy-pgadmin
+    profiles: ["dev-tools"]
     environment:
       - PGADMIN_DEFAULT_EMAIL=admin@paperalchemy.com
       - PGADMIN_DEFAULT_PASSWORD=admin123
@@ -397,6 +414,12 @@ services:
       - "5050:80"
     depends_on:
       - postgres
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/misc/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
     networks:
       - paperalchemy-network

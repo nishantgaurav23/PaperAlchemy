@@ -1,10 +1,7 @@
-"""SQLAlchemy models."""
+"""ORM models for PaperAlchemy."""
 
-from src.models.base import Base, TimestampMixin
+from __future__ import annotations
+
 from src.models.paper import Paper
 
-__all__ = [
-    "Base",
-    "TimestampMixin",
-    "Paper",
-]
+__all__ = ["Paper"]

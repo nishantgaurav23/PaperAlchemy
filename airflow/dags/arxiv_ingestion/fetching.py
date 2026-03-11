@@ -1,59 +1,38 @@
-"""
-Task 2: fetch_daily_papers
+"""Task 2: Fetch daily papers — call ingestion API endpoint."""
 
-Calls POST /api/v1/ingest/fetch on the API container.
-The API handles arXiv fetching, PDF parsing, and PostgreSQL storage.
-This task is just the orchestrator — it triggers and monitors the work.
-
-XCom output (key="fetch_result"):
-    {
-        "target_date": "20260221",
-        "papers_fetched": 42,
-        "pdfs_downloaded": 38,
-        "pdfs_parsed": 35,
-        "papers_stored": 42,
-        "arxiv_ids": ["2602.06039", ...],
-        "errors": [],
-        "processing_time": 183.4
-    }
-"""
+from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import httpx
 
-from arxiv_ingestion.common import INGEST_FETCH_URL, FETCH_TIMEOUT
+from .common import FETCH_TIMEOUT, INGEST_FETCH_URL
 
 logger = logging.getLogger(__name__)
 
 
-def fetch_daily_papers(ti, **context) -> dict:
-    """
-    Trigger paper fetch via POST /api/v1/ingest/fetch and push result to XCom.
-
-    Airflow task function — called by PythonOperator.
+def fetch_daily_papers(ti, execution_date: datetime | None = None, **context) -> None:
+    """Fetch yesterday's arXiv papers via the ingestion API.
 
     Args:
-        ti: Airflow TaskInstance (injected by Airflow, used for XCom push)
-        context: Airflow context dict (execution_date, etc.)
+        ti: Airflow TaskInstance (for XCom push).
+        execution_date: Logical execution date from Airflow context.
+        context: Additional Airflow context (unused).
 
-    Returns:
-        Fetch statistics dict (also pushed to XCom).
+    Raises:
+        RuntimeError: On HTTP or connection failure (triggers Airflow retry).
     """
-    # Determine target date: day before the DAG execution date
-    execution_date = context.get("execution_date", datetime.now(timezone.utc))
-    yesterday = execution_date - timedelta(days=1)
-    target_date = yesterday.strftime("%Y%m%d")
+    if execution_date is None:
+        execution_date = context.get("execution_date", datetime.utcnow())
 
-    logger.info(f"Calling POST {INGEST_FETCH_URL} for date={target_date}")
+    target_date = (execution_date - timedelta(days=1)).strftime("%Y%m%d")
+    logger.info("Fetching papers for target_date=%s", target_date)
+
+    payload = {"target_date": target_date}
 
     try:
-        response = httpx.post(
-            INGEST_FETCH_URL,
-            json={"date": target_date, "max_results": 10, "process_pdfs": True},
-            timeout=FETCH_TIMEOUT,
-        )
+        response = httpx.post(INGEST_FETCH_URL, json=payload, timeout=FETCH_TIMEOUT)
         response.raise_for_status()
         result = response.json()
     except httpx.HTTPStatusError as e:
@@ -61,11 +40,8 @@ def fetch_daily_papers(ti, **context) -> dict:
     except httpx.HTTPError as e:
         raise RuntimeError(f"Fetch request failed: {e}") from e
 
-    logger.info(
-        f"Fetch complete — fetched={result.get('papers_fetched', 0)}, "
-        f"stored={result.get('papers_stored', 0)}, "
-        f"errors={len(result.get('errors', []))}"
-    )
+    papers_fetched = result.get("papers_fetched", 0)
+    arxiv_ids = result.get("arxiv_ids", [])
+    logger.info("Fetched %d papers, %d arXiv IDs", papers_fetched, len(arxiv_ids))
 
     ti.xcom_push(key="fetch_result", value=result)
-    return result

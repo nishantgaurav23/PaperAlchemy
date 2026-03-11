@@ -52,6 +52,9 @@ airflow/*.json.generated
 data/
 *.pdf
 
+# Reference (old code, not part of new development)
+_reference/
+
 # Secrets
 *.pem
 *.key

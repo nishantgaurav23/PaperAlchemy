@@ -1,22 +1,15 @@
-"""
-Shared constants for the PaperAlchemy Airflow DAG tasks.
+"""Constants for the arXiv ingestion DAG.
 
-Why this is now just a constants file:
-    The original version imported from src.* (SQLAlchemy 2.0) which conflicts
-    with Airflow's bundled SQLAlchemy 1.4. The fix: DAG tasks call HTTP endpoints
-    on the API container instead. The API container has all correct dependencies.
-
-The API container is reachable at http://api:8000 from inside the Docker network.
+All API calls go through the FastAPI REST API (Docker internal hostname)
+to avoid SQLAlchemy version conflicts between Airflow and the application.
 """
 
-# Base URL of the PaperAlchemy API (Docker internal network hostname)
+from __future__ import annotations
+
 API_BASE_URL = "http://api:8000"
 
 INGEST_FETCH_URL = f"{API_BASE_URL}/api/v1/ingest/fetch"
-INGEST_INDEX_URL = f"{API_BASE_URL}/api/v1/ingest/index"
-HEALTH_URL = f"{API_BASE_URL}/api/v1/health"
+HEALTH_URL = f"{API_BASE_URL}/api/v1/ping"
 
-# Timeout for long-running ingest calls (PDF parsing can be slow)
-FETCH_TIMEOUT = 1800  # 30 minutes — docling parses many PDFs
-INDEX_TIMEOUT = 900   # 15 minutes — Jina embedding batches
-DEFAULT_TIMEOUT = 30
+FETCH_TIMEOUT = 1800  # 30 min — PDF parsing is slow
+DEFAULT_TIMEOUT = 30  # Health checks

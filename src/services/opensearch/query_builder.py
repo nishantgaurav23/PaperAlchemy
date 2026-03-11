@@ -1,65 +1,31 @@
+"""OpenSearch query builder for constructing BM25 search queries.
+
+Builds complex OpenSearch queries with proper scoring, filtering,
+highlighting, and sorting for both paper-level and chunk-level search.
 """
-OpenSearch query builder for constructing complex search queries.
 
-Why it's needed:
-    OpenSearch queries are deeply nested JSON structures. Building them
-    inline in the client code is error-prone and hard to maintain. The
-    QueryBuilder encapsulates all query construction logic, producing
-    well-structured queries with proper scoring, filtering, highlighting,
-    and sorting.
-
-What it does:
-    - build(): Assembles the complete query body by combining:
-      - _build_query(): Bool query with must (text search) + filter (categories)
-      - _build_text_query(): Multi-match across fields with boosting (title^3)
-      - _build_filters(): Category term filters (don't affect scoring)
-      - _build_source_fields(): Which fields to return (excludes embeddings)
-      - _build_highlight(): HTML <mark> tags around matching terms
-      - _build_sort(): Relevance scoring vs date sorting
-
-How it helps:
-    - Clean separation: client.py calls builder.build(), doesn't construct JSON
-    - Two modes: paper-level search (title^3, abstract^2, authors^1) and
-      chunk-level search (chunk_text^3, title^2, abstract^1)
-    - Fuzzy matching: handles typos via fuzziness="AUTO" with prefix_length=2
-    - Extensible: add new filters or query types without touching client.py
-"""
+from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class QueryBuilder:
-    """
-    Unified query builder for OpenSearch supporting both paper-level and chunck-level search.
-    Builds complex OpenSearch quiers with proper sccoring, filtering, and highlighting.
-    """
+    """Unified query builder for OpenSearch BM25 search queries."""
 
     def __init__(
-            self,
-            query: str,
-            size: int = 10,
-            from_: int = 0,
-            fields: Optional[List[str]] = None,
-            categories: Optional[List[str]] = None,
-            track_total_hits: bool = True,
-            latest_papers: bool = False,
-            search_chunks: bool = False,
+        self,
+        query: str,
+        size: int = 10,
+        from_: int = 0,
+        fields: list[str] | None = None,
+        categories: list[str] | None = None,
+        track_total_hits: bool = True,
+        latest_papers: bool = False,
+        search_chunks: bool = True,
     ):
-        """
-        Initialize query builder.
-
-        Args:
-            query: Search query text
-            size: Number of results return
-            from_: Offset for pagination
-            categories: Filter by categories
-            track_total_hits: Whether to track total hits accurately
-            latest_papers: Sort by publication date instead of relevance
-            search_chunks: Whether seacrhing chunks (True) or papers (False)
-        """
         self.query = query
         self.size = size
         self.from_ = from_
@@ -76,14 +42,9 @@ class QueryBuilder:
         else:
             self.fields = fields
 
-    def build(self) -> Dict[str, Any]:
-        """
-        Build the complete OpenSearch query.
-
-        Returns:
-            Compelete the query dictinary ready for OpenSearch
-        """
-        query_body = {
+    def build(self) -> dict[str, Any]:
+        """Build the complete OpenSearch query body."""
+        query_body: dict[str, Any] = {
             "query": self._build_query(),
             "size": self.size,
             "from": self.from_,
@@ -91,46 +52,26 @@ class QueryBuilder:
             "_source": self._build_source_fields(),
             "highlight": self._build_highlight(),
         }
-
         sort = self._build_sort()
         if sort:
             query_body["sort"] = sort
-
         return query_body
-    
-    def _build_query(self) -> Dict[str, Any]:
-        """
-        Build the main query with filters.
 
-        Returns:
-            Query dictionary with bool structures
-        """
-        must_clauses = []
-
+    def _build_query(self) -> dict[str, Any]:
+        must_clauses: list[dict[str, Any]] = []
         if self.query.strip():
             must_clauses.append(self._build_text_query())
-        
+
+        bool_query: dict[str, Any] = {}
+        bool_query["must"] = must_clauses if must_clauses else [{"match_all": {}}]
+
         filter_clauses = self._build_filters()
-
-        bool_query = {}
-
-        if must_clauses:
-            bool_query["must"] = must_clauses
-        else:
-            bool_query["must"] = [{"match_all": {}}]
-
         if filter_clauses:
             bool_query["filter"] = filter_clauses
 
         return {"bool": bool_query}
-    
-    def _build_text_query(self) -> Dict[str, Any]:
-        """
-        Build the main text search query.
 
-        Returns:
-            Multi-match query for text search
-        """
+    def _build_text_query(self) -> dict[str, Any]:
         return {
             "multi_match": {
                 "query": self.query,
@@ -141,43 +82,27 @@ class QueryBuilder:
                 "prefix_length": 2,
             }
         }
-    
-    def _build_filters(self) -> List[Dict[str, Any]]:
-        """
-        Build filter clauses for the query.
 
-        Returns:
-            List of filter clauses
-        """
-        filters = []
-
+    def _build_filters(self) -> list[dict[str, Any]]:
+        filters: list[dict[str, Any]] = []
         if self.categories:
             filters.append({"terms": {"categories": self.categories}})
-
         return filters
-    
-    def _build_source_fields(self) -> Any:
-        """
-        Define which fields to return in results.
 
-        Returns:
-            Source field configuration (list for papers, dict for chunks)
-        """
+    def _build_source_fields(self) -> Any:
         if self.search_chunks:
             return {"excludes": ["embedding"]}
-        else:
-            return [
-                "arxiv_id", "title", "authors", "abstract",
-                "categories", "published_date", "pdf_url"
-            ]
-        
-    def _build_highlight(self) -> Dict[str, Any]:
-        """
-        Build highlighting configuration.
+        return [
+            "arxiv_id",
+            "title",
+            "authors",
+            "abstract",
+            "categories",
+            "published_date",
+            "pdf_url",
+        ]
 
-        Returns:
-            Highlight configuration dictionary
-        """
+    def _build_highlight(self) -> dict[str, Any]:
         if self.search_chunks:
             return {
                 "fields": {
@@ -187,59 +112,43 @@ class QueryBuilder:
                         "pre_tags": ["<mark>"],
                         "post_tags": ["</mark>"],
                     },
-                    "title": {                                                                                                   
-                        "fragment_size": 0,                                                                                      
-                        "number_of_fragments": 0,                                                                                
-                        "pre_tags": ["<mark>"],                                                                                  
-                        "post_tags": ["</mark>"]                                                                                 
-                    },                                                                                                           
-                    "abstract": {                                                                                                
-                        "fragment_size": 150,                                                                                    
-                        "number_of_fragments": 1,                                                                                
-                        "pre_tags": ["<mark>"],                                                                                  
-                        "post_tags": ["</mark>"],                                                                                
-                    },                                                                                                           
-                },                                                                                                               
-                "require_field_match": False,                                                                                    
-            }                                                                                                                    
-        else:                                                                                                                    
-            # Paper-specific highlighting                                                                                        
-            return {                                                                                                             
-                "fields": {                                                                                                      
-                    "title": {                                                                                                   
-                        "fragment_size": 0,                                                                                      
-                        "number_of_fragments": 0,                                                                                
-                    },                                                                                                           
-                    "abstract": {                                                                                                
-                        "fragment_size": 150,                                                                                    
-                        "number_of_fragments": 3,                                                                                
-                        "pre_tags": ["<mark>"],                                                                                  
-                        "post_tags": ["</mark>"],                                                                                
-                    },                                                                                                           
-                    "authors": {                                                                                                 
-                        "fragment_size": 0,                                                                                      
-                        "number_of_fragments": 0,                                                                                
-                        "pre_tags": ["<mark>"],                                                                                  
-                        "post_tags": ["</mark>"],                                                                                
-                    },                                                                                                           
-                },                                                                                                               
-                "require_field_match": False,                                                                                    
+                    "title": {
+                        "fragment_size": 0,
+                        "number_of_fragments": 0,
+                        "pre_tags": ["<mark>"],
+                        "post_tags": ["</mark>"],
+                    },
+                    "abstract": {
+                        "fragment_size": 150,
+                        "number_of_fragments": 1,
+                        "pre_tags": ["<mark>"],
+                        "post_tags": ["</mark>"],
+                    },
+                },
+                "require_field_match": False,
             }
-        
-    def _build_sort(self) -> Optional[List[Dict[str, Any]]]:
-        """
-        Build sorting configuration.
+        return {
+            "fields": {
+                "title": {"fragment_size": 0, "number_of_fragments": 0},
+                "abstract": {
+                    "fragment_size": 150,
+                    "number_of_fragments": 3,
+                    "pre_tags": ["<mark>"],
+                    "post_tags": ["</mark>"],
+                },
+                "authors": {
+                    "fragment_size": 0,
+                    "number_of_fragments": 0,
+                    "pre_tags": ["<mark>"],
+                    "post_tags": ["</mark>"],
+                },
+            },
+            "require_field_match": False,
+        }
 
-        Returns:
-            Sort configuration of None for relevance scoring
-        """
+    def _build_sort(self) -> list[dict[str, Any]] | None:
         if self.latest_papers:
             return [{"published_date": {"order": "desc"}}, "_score"]
         if self.query.strip():
-            return None # Use relevance scoring
-        
+            return None
         return [{"published_date": {"order": "desc"}}, "_score"]
-
-
-
-

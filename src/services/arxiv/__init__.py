@@ -5,5 +5,5 @@ from src.services.arxiv.factory import make_arxiv_client
 
 __all__ = [
     "ArxivClient",
-    "make_arxiv_client",    
+    "make_arxiv_client",
 ]

@@ -1,75 +1,57 @@
-"""SQLAlchemy model for arXiv papers."""
+"""SQLAlchemy ORM model for arXiv papers."""
 
+import uuid
 from datetime import datetime
-from typing import List, Optional
 
-from sqlalchemy import String, Text, DateTime, Index
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import JSON, DateTime, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.models.base import Base, TimestampMixin
+from src.db.base import Base
 
-class Paper(Base, TimestampMixin):
-    """arXiv paper model for PostgreSQL storage."""
+# Use JSON (portable) rather than JSONB so tests can use SQLite.
+# PostgreSQL treats JSON columns efficiently enough; JSONB can be
+# swapped in via Alembic migration if GIN-index performance matters.
 
-    __tablename__ = 'papers'
 
-    # Primary Key
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+class Paper(Base):
+    """arXiv paper stored in PostgreSQL."""
+
+    __tablename__ = "papers"
+
+    # Primary key — UUID
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True,
+        default=uuid.uuid4,
+    )
 
     # arXiv metadata (required)
-    arxiv_id: Mapped[str] = mapped_column(
-        String(50),
-        unique=True,
-        nullable=False,
-        index=True
-    )
+    arxiv_id: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
-    authors: Mapped[List[str]] = mapped_column(JSONB, nullable=False)
+    authors: Mapped[list] = mapped_column(JSON, nullable=False)
     abstract: Mapped[str] = mapped_column(Text, nullable=False)
-    categories: Mapped[List[str]] = mapped_column(JSONB, nullable=False)
+    categories: Mapped[list] = mapped_column(JSON, nullable=False)
     published_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     pdf_url: Mapped[str] = mapped_column(String(500), nullable=False)
 
     # PDF content (populated after parsing)
-    pdf_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    sections: Mapped[Optional[list[dict]]] = mapped_column(JSONB, nullable=True)
+    pdf_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sections: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     # Parsing metadata
-    parsing_status: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default="pending"  # pending, success, failed
-    )
-    parsing_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    parsing_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", insert_default="pending")
+    parsing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Indexes for common queries
+    # Timestamps
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=True
+    )
+
     __table_args__ = (
         Index("idx_papers_published_date", "published_date"),
         Index("idx_papers_parsing_status", "parsing_status"),
-        Index("idx_papers_categories", "categories", postgresql_using="gin")
     )
 
     def __repr__(self) -> str:
-        return f"<Paper_id={self.id}, arxiv_id='{self.arxiv_id}', title='{self.title[50:]}...')>"
-    
-    def to_dict(self) -> dict:
-        """Convert model to dictionary."""
-        return {
-            "id": self.id,
-            "arxiv_id": self.arxiv_id,
-            "title": self.title,
-            "authors": self.authors,
-            "abstract": self.abstract,
-            "categories": self.categories,
-            "published_date": self.published_date.isoformat() if self.published_date else None,
-            "updated_date": self.updated_date.isoformat() if self.updated_date else None,
-            "pdf_url": self.pdf_url,
-            "pdf_content": self.pdf_content,
-            "sections": self.sections,
-            "parsing_status": self.parsing_status,
-            "parsing_error": self.parsing_error,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-        }
+        return f"<Paper arxiv_id='{self.arxiv_id}' title='{self.title[:50]}...'>"

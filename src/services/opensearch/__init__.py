@@ -1,24 +1,15 @@
-"""OpenSearch service module."""
+"""OpenSearch service: client, index config, query builder, and factories."""
 
 from .client import OpenSearchClient
 from .factory import make_opensearch_client, make_opensearch_client_fresh
+from .index_config import ARXIV_PAPERS_CHUNKS_MAPPING, HYBRID_RRF_PIPELINE
 from .query_builder import QueryBuilder
-from .index_config import (
-    ARXIV_PAPERS_INDEX,
-    ARXIV_PAPERS_MAPPING,
-    ARXIV_PAPERS_CHUNKS_INDEX,
-    ARXIV_PAPERS_CHUNKS_MAPPING,
-    HYBRID_RRF_PIPELINE
-)
 
 __all__ = [
+    "ARXIV_PAPERS_CHUNKS_MAPPING",
+    "HYBRID_RRF_PIPELINE",
     "OpenSearchClient",
+    "QueryBuilder",
     "make_opensearch_client",
     "make_opensearch_client_fresh",
-    "QueryBuilder",
-    "ARXIV_PAPERS_INDEX",
-    "ARXIV_PAPERS_MAPPING",
-    "ARXIV_PAPERS_CHUNKS_INDEX",
-    "ARXIV_PAPERS_CHUNKS_MAPPING",
-    "HYBRID_RRF_PIPELINE"
 ]

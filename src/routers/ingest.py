@@ -1,186 +1,126 @@
-"""
-Ingestion API router — exposes paper fetch and index operations as REST endpoints.
+"""Ingestion endpoint: fetch arXiv papers, download PDFs, parse, and store."""
 
-Why it's needed:
-    Airflow runs in a separate container with SQLAlchemy 1.4. Our src/ code
-    uses SQLAlchemy 2.0 (DeclarativeBase, Mapped). These cannot coexist.
-    The solution: Airflow calls these HTTP endpoints instead of importing src.*
-    directly. The API container handles all business logic with the correct
-    dependencies already installed.
+from __future__ import annotations
 
-What it does:
-    POST /api/v1/ingest/fetch  — fetch yesterday's (or a given date's) papers
-                                  from arXiv, parse PDFs, store in PostgreSQL
-    POST /api/v1/ingest/index  — read stored papers from PostgreSQL, chunk +
-                                  embed + bulk-index into OpenSearch
-
-How Airflow uses it:
-    Task 2 (fetch_daily_papers)  → POST /api/v1/ingest/fetch
-    Task 3 (index_papers_hybrid) → POST /api/v1/ingest/index
-    Both tasks are simple httpx.post() calls — zero src.* imports in Airflow.
-"""
-
-import asyncio
 import logging
-from datetime import datetime, timedelta
+import time
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
-from src.dependency import SessionDep, SettingsDep
-from src.repositories.paper import PaperRepository
-from src.schemas.api.ingest import (
-    FetchRequest, FetchResponse,
-    IndexRequest, IndexResponse,
-    ReparseResponse,
-)
-from src.services.indexing.factory import make_hybrid_indexing_service
-from src.services.metadata_fetcher import make_metadata_fetcher
+from src.dependency import PaperRepoDep, SessionDep
+from src.schemas.api.ingest import IngestRequest, IngestResponse
+from src.schemas.paper import PaperCreate
+from src.services.arxiv.factory import make_arxiv_client
+from src.services.pdf_parser.factory import make_pdf_parser_service
 
 logger = logging.getLogger(__name__)
 
-ingest_router = APIRouter(prefix="/api/v1/ingest", tags=["ingest"])
+router = APIRouter()
 
 
-@ingest_router.post("/fetch", response_model=FetchResponse)
-async def fetch_papers(
-    request: FetchRequest,
+@router.post("/ingest/fetch", response_model=IngestResponse)
+async def ingest_fetch(
+    request: IngestRequest,
+    repo: PaperRepoDep,
     session: SessionDep,
-    settings: SettingsDep,
-) -> FetchResponse:
-    """
-    Fetch arXiv papers for a given date, parse PDFs, store in PostgreSQL.
+) -> IngestResponse:
+    """Fetch arXiv papers for a target date, download PDFs, parse, and store.
 
-    Called by Airflow Task 2 (fetch_daily_papers). Defaults to yesterday
-    when no date is provided so scheduled runs always process the previous day.
+    Idempotent: uses upsert for paper metadata and overwrites parsed content.
     """
-    # Default to yesterday when no date given
-    if request.date:
-        target_date = request.date
+    start_time = time.time()
+
+    # Resolve target date
+    if request.target_date:
+        target_date = request.target_date
     else:
-        yesterday = datetime.utcnow() - timedelta(days=1)
+        yesterday = datetime.now(tz=UTC) - timedelta(days=1)
         target_date = yesterday.strftime("%Y%m%d")
 
-    logger.info(f"POST /ingest/fetch | date={target_date} | max_results={request.max_results}")
+    logger.info("Ingestion started for target_date=%s", target_date)
 
-    try:
-        metadata_fetcher = make_metadata_fetcher()
-        result = await metadata_fetcher.fetch_and_process_papers(
-            from_date=target_date,
-            to_date=target_date,
-            max_results=request.max_results,
-            process_pdfs=request.process_pdfs,
-            store_to_db=True,
-            db_session=session,
-        )
+    arxiv_client = make_arxiv_client()
+    pdf_parser = make_pdf_parser_service()
 
-        return FetchResponse(
-            target_date=target_date,
-            papers_fetched=result.get("papers_fetched", 0),
-            pdfs_downloaded=result.get("pdfs_downloaded", 0),
-            pdfs_parsed=result.get("pdfs_parsed", 0),
-            papers_stored=result.get("papers_stored", 0),
-            arxiv_ids=result.get("papers", []),
-            errors=result.get("errors", []),
-            processing_time=result.get("processing_time", 0.0),
-        )
+    # Step 1: Fetch papers from arXiv
+    papers = await arxiv_client.fetch_papers(from_date=target_date, to_date=target_date)
 
-    except Exception as e:
-        logger.error(f"Fetch pipeline error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    arxiv_ids: list[str] = []
+    errors: list[str] = []
+    pdfs_downloaded = 0
+    pdfs_parsed = 0
+    papers_stored = 0
 
+    for paper in papers:
+        arxiv_ids.append(paper.arxiv_id)
 
-@ingest_router.post("/index", response_model=IndexResponse)
-async def index_papers(
-    request: IndexRequest,
-    session: SessionDep,
-    settings: SettingsDep,
-) -> IndexResponse:
-    """
-    Chunk, embed, and index papers into OpenSearch.
+        # Step 2: Upsert paper metadata to DB
+        try:
+            paper_create = PaperCreate(
+                arxiv_id=paper.arxiv_id,
+                title=paper.title,
+                authors=paper.authors,
+                abstract=paper.abstract,
+                categories=paper.categories,
+                published_date=datetime.fromisoformat(paper.published_date.replace("Z", "+00:00")),
+                updated_date=(datetime.fromisoformat(paper.updated_date.replace("Z", "+00:00")) if paper.updated_date else None),
+                pdf_url=paper.pdf_url,
+                parsing_status="pending",
+            )
+            await repo.upsert(paper_create)
+            papers_stored += 1
+        except Exception as e:
+            logger.error("Failed to store paper %s: %s", paper.arxiv_id, e)
+            errors.append(f"Store failed for {paper.arxiv_id}: {e}")
+            continue
 
-    Called by Airflow Task 3 (index_papers_hybrid). Accepts specific
-    arxiv_ids from Task 2's XCom result, or falls back to papers stored
-    in the last since_hours.
-    """
+        # Step 3: Download PDF
+        pdf_path = await arxiv_client.download_pdf(paper.arxiv_id, paper.pdf_url)
+        if pdf_path is None:
+            logger.warning("PDF download failed for %s", paper.arxiv_id)
+            continue
+        pdfs_downloaded += 1
+
+        # Step 4: Parse PDF
+        try:
+            content = await pdf_parser.parse_pdf(pdf_path)
+            sections_dicts = [s.model_dump() for s in content.sections]
+            await repo.update_parsing_status(
+                arxiv_id=paper.arxiv_id,
+                status="success",
+                pdf_content=content.raw_text,
+                sections=sections_dicts,
+            )
+            pdfs_parsed += 1
+        except Exception as e:
+            logger.error("PDF parse failed for %s: %s", paper.arxiv_id, e)
+            await repo.update_parsing_status(
+                arxiv_id=paper.arxiv_id,
+                status="failed",
+                error=str(e),
+            )
+            errors.append(f"Parse failed for {paper.arxiv_id}: {e}")
+
+    await session.commit()
+
+    processing_time = round(time.time() - start_time, 2)
     logger.info(
-        f"POST /ingest/index | arxiv_ids={request.arxiv_ids} | since_hours={request.since_hours}"
+        "Ingestion complete: %d fetched, %d downloaded, %d parsed, %d stored, %d errors in %.1fs",
+        len(papers),
+        pdfs_downloaded,
+        pdfs_parsed,
+        papers_stored,
+        len(errors),
+        processing_time,
     )
 
-    try:
-        repo = PaperRepository(session)
-
-        # Resolve which papers to index
-        if request.arxiv_ids:
-            papers = [repo.get_by_arxiv_id(aid) for aid in request.arxiv_ids]
-            papers = [p for p in papers if p is not None]
-        else:
-            since = datetime.utcnow() - timedelta(hours=request.since_hours)
-            papers = repo.get_recently_stored(since=since)
-
-        if not papers:
-            logger.warning("No papers found to index")
-            return IndexResponse(
-                papers_processed=0, chunks_created=0, chunks_indexed=0, errors=[]
-            )
-
-        # Convert ORM objects to plain dicts for the indexing service
-        paper_dicts = [
-            {
-                "arxiv_id": p.arxiv_id,
-                "title": p.title,
-                "authors": p.authors,
-                "abstract": p.abstract,
-                "categories": p.categories,
-                "published_date": p.published_date.strftime("%Y-%m-%dT%H:%M:%SZ") if p.published_date else None,
-                "pdf_url": p.pdf_url,
-                "raw_text": p.pdf_content,
-                "sections": p.sections or [],
-            }
-            for p in papers
-        ]
-
-        indexing_service = make_hybrid_indexing_service(settings)
-        stats = await indexing_service.index_papers_batch(paper_dicts, replace_existing=True)
-
-        return IndexResponse(
-            papers_processed=stats.get("papers_processed", len(papers)),
-            chunks_created=stats.get("total_chunks_created", 0),
-            chunks_indexed=stats.get("total_chunks_indexed", 0),
-            errors=stats.get("errors", []),
-        )
-
-    except Exception as e:
-        logger.error(f"Index pipeline error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@ingest_router.post("/reparse", response_model=ReparseResponse)
-async def reparse_pending_papers(
-    session: SessionDep,
-) -> ReparseResponse:
-    """
-    Re-parse PDFs for all papers with parsing_status='pending'.
-
-    Downloads and parses PDFs for papers that previously failed or
-    timed out during parsing. Useful after increasing the PDF timeout.
-    """
-    logger.info("POST /ingest/reparse — processing pending papers")
-
-    try:
-        metadata_fetcher = make_metadata_fetcher()
-        result = await metadata_fetcher.processing_pending_papers(
-            db_session=session,
-        )
-
-        return ReparseResponse(
-            papers_processed=result.get("papers_processed", 0),
-            pdfs_downloaded=result.get("pdfs_downloaded", 0),
-            pdfs_parsed=result.get("pdfs_parsed", 0),
-            parse_failures=result.get("parse_failures", 0),
-            errors=result.get("errors", []),
-            processing_time=result.get("processing_time", 0.0),
-        )
-
-    except Exception as e:
-        logger.error(f"Reparse pipeline error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    return IngestResponse(
+        papers_fetched=len(papers),
+        pdfs_downloaded=pdfs_downloaded,
+        pdfs_parsed=pdfs_parsed,
+        papers_stored=papers_stored,
+        arxiv_ids=arxiv_ids,
+        errors=errors,
+        processing_time=processing_time,
+    )
