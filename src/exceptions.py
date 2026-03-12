@@ -53,6 +53,24 @@ class PaperSaveError(RepositoryError):
         super().__init__(detail, **kwargs)
 
 
+# -- Analysis --
+
+
+class AnalysisError(PaperAlchemyError):
+    """Base exception for paper analysis operations."""
+
+    def __init__(self, detail: str = "Analysis failed", **kwargs) -> None:
+        super().__init__(detail, **kwargs)
+
+
+class InsufficientContentError(AnalysisError):
+    """Raised when a paper has too little content for analysis."""
+
+    def __init__(self, detail: str = "Insufficient paper content for analysis", **kwargs) -> None:
+        kwargs.setdefault("status_code", 422)
+        super().__init__(detail, **kwargs)
+
+
 # -- Parsing (document parsing layer) --
 
 

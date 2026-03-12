@@ -12,11 +12,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config import Settings, get_settings
 from src.db import init_database
 from src.middlewares import RequestLoggingMiddleware, register_error_handlers
+from src.routers.analysis import router as analysis_router
 from src.routers.ask import router as ask_router
 from src.routers.chat import router as chat_router
 from src.routers.ingest import router as ingest_router
 from src.routers.ping import router as ping_router
 from src.routers.search import router as search_router
+from src.routers.upload import router as upload_router
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,8 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     app.include_router(search_router, prefix="/api/v1")
     app.include_router(ask_router, prefix="/api/v1")
     app.include_router(chat_router, prefix="/api/v1")
+    app.include_router(upload_router, prefix="/api/v1")
+    app.include_router(analysis_router, prefix="/api/v1")
 
     return app
 

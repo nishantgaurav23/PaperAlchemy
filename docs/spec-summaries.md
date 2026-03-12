@@ -1993,3 +1993,177 @@ Completes Phase 6 (Agent System). Enables multi-agent collaboration where the or
 ### Dependencies Unlocked
 - Phase 6 complete — all 8 agent specs done
 - **P8** (Paper Upload & Analysis) — Can reuse SummarizerAgent for S8.2 paper summaries
+
+---
+
+## S8.1 — PDF Upload Endpoint
+
+**Date**: 2026-03-12
+**Status**: done
+**Tests**: 21 (8 router + 13 service)
+
+### What
+`POST /api/v1/upload` endpoint that accepts PDF papers via multipart form, validates, parses with Docling, stores in PostgreSQL, chunks content, embeds via Jina, and indexes in OpenSearch.
+
+### How
+- **UploadService** (`src/services/upload/service.py`): Orchestrates full pipeline — validate → parse → save → chunk → embed → index
+- **Upload Router** (`src/routers/upload.py`): FastAPI endpoint with DI for all services (PDFParser, PaperRepo, TextChunker, Embeddings, OpenSearch)
+- **UploadResponse** (`src/schemas/api/upload.py`): Structured response with paper_id, chunks_indexed, warnings, indexing_status
+- **Graceful degradation**: Paper is saved even if indexing fails (returns warning)
+
+### Why
+Entry point for Phase 8 (Paper Upload & Analysis). Users can upload their own PDFs, which get parsed, stored, and made searchable alongside arXiv papers. All downstream analysis specs (S8.2-S8.5) depend on this.
+
+### Core Features
+- PDF validation: extension check, size limit (50MB), magic bytes (`%PDF`)
+- Metadata extraction: title from sections/filename, abstract from "Abstract" section or raw_text fallback
+- Paper record: `arxiv_id=upload_<uuid>`, `source=upload`, full text + sections stored
+- Chunking + embedding + indexing pipeline with graceful failure handling
+- 413 for oversized, 422 for invalid PDF/parse errors
+
+### Files
+- `src/routers/upload.py` — POST /api/v1/upload endpoint
+- `src/services/upload/service.py` — UploadService (validate, extract, process)
+- `src/schemas/api/upload.py` — UploadResponse schema
+- `tests/unit/test_upload_router.py` — 8 router tests
+- `tests/unit/test_upload_service.py` — 13 service tests
+- `notebooks/specs/S8.1_upload.ipynb` — Interactive verification
+
+### Dependencies Unlocked
+- **S8.2** (Paper Summary) — can generate AI summaries of uploaded papers
+- **S8.3** (Key Highlights) — can extract highlights from uploaded papers
+- **S8.4** (Methodology Analysis) — can analyze methodology of uploaded papers
+
+---
+
+## S8.3 — Key Highlights Extraction
+
+### What
+Extracts structured key highlights and insights from academic papers using the LLM client. Returns 5 categories: novel contributions, important findings, practical implications, limitations, and keywords.
+
+### How
+- **HighlightsService** takes an `LLMProvider` and `PaperRepository`, fetches the paper, prepares content (prioritizing abstract, results, conclusion), and sends a structured JSON prompt to the LLM
+- **Content preparation** prioritizes high-value sections (results, conclusion, discussion) and truncates to ~4000 words
+- **JSON parsing** with fallback: if LLM returns malformed output, generates placeholder highlights with a warning
+- **API endpoint**: `POST /api/v1/papers/{paper_id}/highlights` with `?force=true` for cache bypass
+- Handles edge cases: paper not found (404), insufficient content (422), LLM failure (503), abstract-only papers (warning)
+
+### Why
+Paper highlights give researchers a quick overview of a paper's key contributions without reading the full text. Combined with the summary (S8.2), this provides a comprehensive at-a-glance analysis.
+
+### Core Features
+- Structured output: 5 fields (novel_contributions, important_findings, practical_implications, limitations, keywords)
+- Priority-aware content preparation (results/conclusion first)
+- Malformed LLM output fallback with warning
+- Abstract-only mode for papers without parsed sections
+- Force regeneration via query parameter
+
+### Files
+- `src/services/analysis/highlights.py` — HighlightsService
+- `src/schemas/api/analysis.py` — PaperHighlights + HighlightsResponse schemas
+- `src/routers/analysis.py` — POST /api/v1/papers/{paper_id}/highlights endpoint
+- `tests/unit/test_analysis_highlights.py` — 15 tests (service, schemas, endpoint)
+- `notebooks/specs/S8.3_highlights.ipynb` — Interactive verification
+
+### Dependencies Unlocked
+- **S8.5** (Paper Comparison) — can compare highlights across papers
+
+---
+
+## S8.2 — AI-Generated Paper Summary
+
+**What**: `SummarizerService` that generates structured paper summaries using the LLM provider. Given a paper's abstract and sections, produces a JSON-structured summary with five fields: objective, method, key_findings, contribution, and limitations.
+
+**How**:
+- `SummarizerService.extract_content()` pulls title, authors, abstract, and priority sections (intro, methodology, results, conclusion), truncating to ~4000 words for context window fit.
+- `SummarizerService.summarize()` builds a system prompt requesting JSON output, calls `LLMProvider.generate()`, and parses the structured response via `_parse_summary()` with fallback for malformed LLM output.
+- `POST /api/v1/papers/{paper_id}/summary` endpoint wired via `src/routers/analysis.py`, with proper error mapping (404, 422, 503).
+- Added `InsufficientContentError` and `AnalysisError` to the exception hierarchy.
+
+**Why**: Core building block for paper analysis features (S8.3-S8.5). Provides actionable, structured summaries instead of raw text, enabling the UI to render each section distinctly.
+
+### Key Files
+- `src/services/analysis/summarizer.py` — `SummarizerService` class
+- `src/schemas/api/analysis.py` — `PaperSummary`, `SummaryResponse` models
+- `src/routers/analysis.py` — Analysis endpoint router
+- `src/exceptions.py` — `AnalysisError`, `InsufficientContentError`
+- `tests/unit/test_analysis_summarizer.py` — 11 tests (service, schemas, endpoint, edge cases)
+- `notebooks/specs/S8.2_summary.ipynb` — Interactive verification
+
+### Dependencies Unlocked
+- **S8.5** (Paper Comparison) — depends on S8.2
+
+---
+
+## S8.4 — Methodology & Findings Deep-Dive
+
+**Date completed**: 2026-03-12
+
+### What
+`MethodologyService` that extracts structured methodology and findings analysis from academic papers using an LLM. Produces: research design, datasets used, baselines compared, key results with metrics, statistical significance, and reproducibility notes.
+
+### How
+- `MethodologyService` class (`src/services/analysis/methodology.py`) following the same pattern as S8.2/S8.3
+- Pydantic models: `DatasetInfo`, `ResultEntry`, `MethodologyAnalysis`, `MethodologyResponse` in `src/schemas/api/analysis.py`
+- LLM prompt enforces structured JSON output with 6 fields
+- Content preparation prioritizes methodology/experiments/results sections, truncates to ~4000 words
+- Fallback parsing for malformed LLM output with warning
+- `POST /api/v1/papers/{paper_id}/methodology` endpoint with `?force=true` support
+
+### Why
+Enables deep-dive analysis of research methodology — essential for researchers evaluating paper rigor, comparing experimental setups, and understanding reproducibility. Complements S8.2 (summary) and S8.3 (highlights) to provide comprehensive paper analysis.
+
+### Core Features
+- 6-field structured output: research_design, datasets, baselines, key_results, statistical_significance, reproducibility_notes
+- Handles theoretical papers (empty datasets/results) gracefully
+- Abstract-only analysis with warning when sections unavailable
+- JSON fallback parsing for malformed LLM output
+
+### Key Files
+- `src/services/analysis/methodology.py` — Service implementation
+- `src/schemas/api/analysis.py` — DatasetInfo, ResultEntry, MethodologyAnalysis, MethodologyResponse
+- `src/routers/analysis.py` — POST endpoint
+- `tests/unit/test_analysis_methodology.py` — 16 tests (service, schemas, endpoint, edge cases)
+- `notebooks/specs/S8.4_methodology.ipynb` — Interactive verification
+
+### Dependencies Unlocked
+- None directly — S8.5 (Paper Comparison) depends on S8.2, not S8.4
+
+---
+
+## S8.5 — Side-by-Side Paper Comparison
+
+**Status**: done
+**Date completed**: 2026-03-12
+
+### What
+`ComparatorService` that generates structured side-by-side comparisons of 2-5 academic papers using an LLM. Produces: methods comparison, results comparison, contributions comparison, limitations comparison, common themes, key differences, and an overall verdict.
+
+### How
+- `ComparatorService` class (`src/services/analysis/comparator.py`) following the S8.2/S8.3 analysis pattern
+- Pydantic models: `ComparedPaper`, `PaperComparison`, `ComparisonRequest` (min 2, max 5 IDs), `ComparisonResponse` in `src/schemas/api/analysis.py`
+- Multi-paper content extraction with per-paper labelling ("Paper 1: ...", "Paper 2: ...") and proportional truncation (~6000 words total)
+- LLM prompt enforces structured JSON output with 7 comparison fields
+- Fallback parsing for malformed LLM output with warning
+- Input validation: deduplicates paper IDs, rejects <2 or >5 unique IDs
+- `POST /api/v1/papers/compare` endpoint with JSON body `{"paper_ids": [...]}` and `?force=true` support
+
+### Why
+Enables researchers to systematically compare multiple papers — identifying methodological differences, complementary contributions, and shared limitations. This is a core feature for literature review workflows and the foundation for S19.1 (Multi-Paper Q&A).
+
+### Core Features
+- 7-field structured comparison: methods, results, contributions, limitations, common_themes, key_differences, verdict
+- Supports 2-5 papers per comparison with automatic deduplication
+- Proportional content truncation per paper to fit LLM context window
+- Markdown-fenced JSON stripping and fallback parsing
+- Full error handling: paper not found, insufficient content, LLM failure
+
+### Key Files
+- `src/services/analysis/comparator.py` — Service implementation
+- `src/schemas/api/analysis.py` — ComparedPaper, PaperComparison, ComparisonRequest, ComparisonResponse
+- `src/routers/analysis.py` — POST /api/v1/papers/compare endpoint
+- `tests/unit/test_analysis_comparator.py` — 18 tests (service, schemas, endpoint, edge cases)
+- `notebooks/specs/S8.5_comparison.ipynb` — Interactive verification (10 sections)
+
+### Dependencies Unlocked
+- **S19.1** (Multi-Paper Q&A) — depends on S6.7 + S8.5
