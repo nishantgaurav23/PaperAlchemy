@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useReducer } from "react";
+import { useCallback, useEffect, useState, useReducer } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, AlertCircle, FileQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { PaperSections } from "@/components/paper/paper-sections";
 import { PaperAnalysis } from "@/components/paper/paper-analysis";
 import { RelatedPapers } from "@/components/paper/related-papers";
 import { PaperDetailSkeleton } from "@/components/paper/paper-detail-skeleton";
-import { getPaper, getRelatedPapers } from "@/lib/api/papers";
+import { getPaper, getRelatedPapers, requestAnalysis } from "@/lib/api/papers";
 import type { PaperDetail } from "@/types/paper";
 import type { Paper } from "@/types/paper";
 
@@ -46,6 +46,7 @@ export default function PaperDetailPage() {
   const [state, dispatch] = useReducer(reducer, { status: "loading" });
   const [relatedPapers, setRelatedPapers] = useState<Paper[]>([]);
   const [retryCount, setRetryCount] = useState(0);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,8 +87,20 @@ export default function PaperDetailPage() {
 
   const handleRetry = () => setRetryCount((c) => c + 1);
 
+  const handleRequestAnalysis = useCallback(async () => {
+    setIsAnalyzing(true);
+    try {
+      const updatedPaper = await requestAnalysis(id);
+      dispatch({ type: "success", paper: updatedPaper });
+    } catch {
+      // Analysis failed but paper is still visible
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [id]);
+
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6">
+    <div className="mx-auto max-w-5xl px-4 md:px-8 py-6">
       <Button
         variant="ghost"
         size="sm"
@@ -135,6 +148,8 @@ export default function PaperDetailPage() {
             summary={state.paper.summary}
             highlights={state.paper.highlights}
             methodology={state.paper.methodology}
+            onRequestAnalysis={handleRequestAnalysis}
+            isAnalyzing={isAnalyzing}
           />
 
           <RelatedPapers papers={relatedPapers} />

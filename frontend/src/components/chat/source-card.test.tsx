@@ -17,6 +17,12 @@ const sourceManyAuthors: ChatSource = {
   arxiv_id: "1810.04805",
 };
 
+const sourceNoYear: ChatSource = {
+  title: "Some Paper",
+  authors: [],
+  arxiv_id: "",
+};
+
 describe("SourceCard", () => {
   it("renders paper title", () => {
     render(<SourceCard source={mockSource} index={0} />);
@@ -51,5 +57,29 @@ describe("SourceCard", () => {
   it("has correct data-testid", () => {
     render(<SourceCard source={mockSource} index={0} />);
     expect(screen.getByTestId("source-card-1")).toBeInTheDocument();
+  });
+
+  it("handles missing authors and year gracefully", () => {
+    render(<SourceCard source={sourceNoYear} index={0} />);
+    expect(screen.getByText("Unknown")).toBeInTheDocument();
+  });
+
+  it("renders title as span when no arxiv_id", () => {
+    render(<SourceCard source={sourceNoYear} index={0} />);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByText("Some Paper")).toBeInTheDocument();
+  });
+
+  it("has hover transition classes", () => {
+    render(<SourceCard source={mockSource} index={0} />);
+    const card = screen.getByTestId("source-card-1");
+    expect(card.className).toContain("transition-all");
+    expect(card.className).toContain("hover:border-primary/30");
+  });
+
+  it("renders gradient number badge", () => {
+    render(<SourceCard source={mockSource} index={0} />);
+    const badge = screen.getByText("1");
+    expect(badge.className).toContain("bg-gradient-to-br");
   });
 });

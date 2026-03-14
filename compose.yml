@@ -7,7 +7,7 @@ services:
     container_name: paperalchemy-api
     profiles: ["full"]
     ports:
-      - "8000:8000"
+      - "8001:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -18,7 +18,7 @@ services:
       # Ollama runs on the host machine (not in Docker).
       # The API connects via OLLAMA__HOST=host.docker.internal:11434.                                                                 
     healthcheck:                                                                                    
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health')\""]                                          
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/api/v1/ping')\""]                                          
       interval: 30s                                                                                 
       timeout: 10s                                                                                  
       retries: 3                                                                                    
@@ -34,11 +34,69 @@ services:
       - LANGFUSE__HOST=http://langfuse-web:3000
       - REDIS__HOST=redis
       - REDIS__PORT=6379
-    networks:                                                                                       
-      - paperalchemy-network                                                                        
-                                                                                                    
-  # ===========================================                                                     
-  # PostgreSQL (Main Database)                                                                      
+      - MINIO__ENDPOINT=minio:9000
+      - MINIO__ACCESS_KEY=paperalchemy
+      - MINIO__SECRET_KEY=paperalchemy_minio_secret
+      - MINIO__BUCKET=paperalchemy
+      - MINIO__USE_SSL=false
+      - SANDBOX__HOST=sandbox
+      - SANDBOX__PORT=2376
+    volumes:
+      - ./data:/app/data
+    networks:
+      - paperalchemy-network
+
+  # ===========================================
+  # MinIO (S3-compatible Object Storage)
+  # ===========================================
+  minio:
+    image: minio/minio
+    container_name: paperalchemy-minio
+    profiles: ["platform"]
+    entrypoint: sh
+    command: -c 'mkdir -p /data/paperalchemy && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      - MINIO_ROOT_USER=paperalchemy
+      - MINIO_ROOT_PASSWORD=paperalchemy_minio_secret
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - paperalchemy-network
+
+  # ===========================================
+  # Code Sandbox (Docker-in-Docker)
+  # ===========================================
+  sandbox:
+    image: docker:27-dind
+    container_name: paperalchemy-sandbox
+    profiles: ["platform"]
+    privileged: true
+    environment:
+      - DOCKER_TLS_CERTDIR=
+    volumes:
+      - sandbox_data:/var/lib/docker
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - paperalchemy-network
+
+  # ===========================================
+  # PostgreSQL (Main Database)
   # ===========================================                                                     
   postgres:                                                                                         
     image: postgres:16-alpine                                                                       
@@ -160,39 +218,61 @@ services:
   # ===========================================                                                     
   # Apache Airflow                                                                                  
   # ===========================================                                                     
+  # ===========================================
+  # Airflow PostgreSQL (separate DB to avoid polluting app DB)
+  # ===========================================
+  airflow-postgres:
+    image: postgres:16-alpine
+    container_name: paperalchemy-airflow-postgres
+    profiles: ["full"]
+    environment:
+      - POSTGRES_DB=airflow
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow_secret
+      - POSTGRES_HOST_AUTH_METHOD=password
+    volumes:
+      - airflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - paperalchemy-network
+
+  # ===========================================
+  # Apache Airflow
+  # ===========================================
   airflow:
     image: apache/airflow:2.10.4-python3.12
     container_name: paperalchemy-airflow
     profiles: ["full"]
-    depends_on:                                                                                     
-      postgres:                                                                                     
-        condition: service_healthy                                                                  
-    environment:                                                                                    
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor                                                       
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://paperalchemy:paperalchemy_secret@postgres:5432/paperalchemy                                                                           
-      - AIRFLOW__CORE__LOAD_EXAMPLES=false                                                          
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow_secret@airflow-postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
       - AIRFLOW__WEBSERVER__SECRET_KEY=paperalchemy_secret_key
-      # --- ADD THESE ---
-      - PYTHONPATH=/opt/airflow/project
-      - POSTGRES__HOST=postgres
-      - POSTGRES__PORT=5432
-      - OPENSEARCH__HOST=http://opensearch:9200
-      - _PIP_ADDITIONAL_REQUIREMENTS=opensearch-py httpx pydantic-settings python-dateutil docling
-
-    volumes:                                                                                        
+      - _PIP_ADDITIONAL_REQUIREMENTS=httpx
+    volumes:
       - ./airflow/dags:/opt/airflow/dags
-      - ./:/opt/airflow/project          # ← ADD: mounts project root                                                            
-      - airflow_logs:/opt/airflow/logs                                                              
-    ports:                                                                                          
-      - "8080:8080"                                                                                 
-    command: standalone                                                                             
-    healthcheck:                                                                                    
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]                                   
-      interval: 30s                                                                                 
-      timeout: 10s                                                                                  
-      retries: 3                                                                                    
-      start_period: 120s                                                                            
-    networks:                                                                                       
+      - airflow_logs:/opt/airflow/logs
+    ports:
+      - "8080:8080"
+    command: standalone
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks:
       - paperalchemy-network                                                                        
                                                                                                     
   # ===========================================                                                     
@@ -433,10 +513,13 @@ volumes:
   opensearch_data:                                                                                  
   ollama_data:
     driver: local                                                                                      
-  airflow_logs:                                                                                     
+  airflow_logs:
+  airflow_postgres_data:
   clickhouse_data:                                                                                  
   langfuse_postgres_data:                                                                           
-  langfuse_minio_data:                                                                              
+  langfuse_minio_data:
+  minio_data:
+  sandbox_data:                
                                                                                                     
 # ===========================================                                                       
 # Networks                                                                                          

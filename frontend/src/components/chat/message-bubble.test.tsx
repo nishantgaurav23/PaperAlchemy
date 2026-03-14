@@ -3,6 +3,14 @@ import { describe, it, expect, vi } from "vitest";
 import { MessageBubble } from "./message-bubble";
 import type { ChatMessage } from "@/types/chat";
 
+// Mock react-markdown to render content directly (avoid ESM issues in test)
+vi.mock("react-markdown", () => ({
+  default: ({ children }: { children: string }) => <div data-testid="markdown-content">{children}</div>,
+}));
+
+vi.mock("remark-gfm", () => ({ default: () => {} }));
+vi.mock("rehype-highlight", () => ({ default: () => {} }));
+
 const userMessage: ChatMessage = {
   id: "user-1",
   role: "user",
@@ -56,12 +64,9 @@ describe("MessageBubble", () => {
     expect(container.className).toContain("justify-start");
   });
 
-  it("renders inline citation badges", () => {
+  it("renders assistant message with markdown renderer", () => {
     render(<MessageBubble message={assistantMessage} />);
-    const badge1 = screen.getByRole("button", { name: "Citation 1" });
-    const badge2 = screen.getByRole("button", { name: "Citation 2" });
-    expect(badge1).toBeInTheDocument();
-    expect(badge2).toBeInTheDocument();
+    expect(screen.getByTestId("markdown-content")).toBeInTheDocument();
   });
 
   it("renders source cards with arxiv links", () => {
@@ -119,5 +124,21 @@ describe("MessageBubble", () => {
   it("renders timestamp", () => {
     render(<MessageBubble message={userMessage} />);
     expect(screen.getByText("just now")).toBeInTheDocument();
+  });
+
+  it("renders timestamp element with data-testid", () => {
+    render(<MessageBubble message={userMessage} />);
+    expect(screen.getByTestId("message-timestamp")).toBeInTheDocument();
+  });
+
+  it("formats older timestamps correctly", () => {
+    const oldMessage: ChatMessage = {
+      id: "old-1",
+      role: "user",
+      content: "Old message",
+      timestamp: Date.now() - 120_000, // 2 minutes ago
+    };
+    render(<MessageBubble message={oldMessage} />);
+    expect(screen.getByText("2m ago")).toBeInTheDocument();
   });
 });

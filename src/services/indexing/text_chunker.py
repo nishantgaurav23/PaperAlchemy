@@ -220,7 +220,7 @@ class TextChunker:
         title_lower = section_title.lower().strip()
 
         metadata_indicators = [
-            "content",
+            "table of contents",
             "header",
             "authors",
             "author",

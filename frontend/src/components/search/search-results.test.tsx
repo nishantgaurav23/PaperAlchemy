@@ -138,4 +138,103 @@ describe("SearchResults", () => {
     );
     expect(screen.getByLabelText("Next page")).toBeInTheDocument();
   });
+
+  // --- New S13.4 tests ---
+
+  it("renders shimmer skeletons during loading", () => {
+    render(
+      <SearchResults
+        papers={[]}
+        total={0}
+        page={1}
+        totalPages={0}
+        pageSize={20}
+        isLoading={true}
+        error={null}
+        onPageChange={vi.fn()}
+      />
+    );
+    const skeletons = screen.getAllByTestId("paper-skeleton");
+    expect(skeletons.length).toBe(4);
+    // Skeletons should use glass-card styling
+    expect(skeletons[0].className).toContain("glass-card");
+  });
+
+  it("renders enhanced empty state with search query", () => {
+    render(
+      <SearchResults
+        papers={[]}
+        total={0}
+        page={1}
+        totalPages={0}
+        pageSize={20}
+        isLoading={false}
+        error={null}
+        hasSearched={true}
+        searchQuery="nonexistent topic"
+        onPageChange={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/nonexistent topic/)).toBeInTheDocument();
+  });
+
+  it("renders search suggestions in empty state when onSuggestionClick provided", () => {
+    render(
+      <SearchResults
+        papers={[]}
+        total={0}
+        page={1}
+        totalPages={0}
+        pageSize={20}
+        isLoading={false}
+        error={null}
+        hasSearched={true}
+        onPageChange={vi.fn()}
+        onSuggestionClick={vi.fn()}
+      />
+    );
+    expect(screen.getByText("transformer architecture")).toBeInTheDocument();
+    expect(screen.getByText("large language models")).toBeInTheDocument();
+  });
+
+  it("calls onSuggestionClick when a suggestion is clicked", async () => {
+    const mockSuggestionClick = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SearchResults
+        papers={[]}
+        total={0}
+        page={1}
+        totalPages={0}
+        pageSize={20}
+        isLoading={false}
+        error={null}
+        hasSearched={true}
+        onPageChange={vi.fn()}
+        onSuggestionClick={mockSuggestionClick}
+      />
+    );
+
+    await user.click(screen.getByText("transformer architecture"));
+    expect(mockSuggestionClick).toHaveBeenCalledWith("transformer architecture");
+  });
+
+  it("truncates long search query in empty state message", () => {
+    const longQuery = "a".repeat(100);
+    render(
+      <SearchResults
+        papers={[]}
+        total={0}
+        page={1}
+        totalPages={0}
+        pageSize={20}
+        isLoading={false}
+        error={null}
+        hasSearched={true}
+        searchQuery={longQuery}
+        onPageChange={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/\.\.\./)).toBeInTheDocument();
+  });
 });

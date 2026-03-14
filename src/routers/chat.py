@@ -41,19 +41,10 @@ async def _stream_chat(
 ) -> AsyncGenerator[str]:
     """Yield SSE events from the follow-up handler stream."""
     try:
-        # Resolve query first to get follow-up metadata
-        history = []
-        if hasattr(handler, "_memory") and handler._memory is not None:
-            history = await handler._memory.get_history(request.session_id)
-
-        from src.services.chat.follow_up import is_follow_up as detect_follow_up
-
-        follow_up = detect_follow_up(request.query, history)
-
-        # Emit metadata event first
+        # Emit metadata event (lightweight — don't pre-fetch history to avoid double load)
         metadata = {
             "session_id": request.session_id,
-            "is_follow_up": follow_up,
+            "is_follow_up": False,
             "rewritten_query": None,
         }
         yield _sse_event("metadata", json.dumps(metadata))
@@ -87,7 +78,7 @@ async def _stream_chat(
         yield _sse_event("done", "{}")
 
     except Exception as exc:
-        logger.warning("Chat stream error: %s", exc)
+        logger.exception("Chat stream error: %s", exc)
         yield _sse_event("error", json.dumps({"detail": str(exc)}))
 
 
@@ -111,7 +102,7 @@ async def chat(request: ChatRequest, handler: FollowUpHandlerDep):
             temperature=request.temperature,
         )
     except Exception as exc:
-        logger.warning("Chat error: %s", exc)
+        logger.exception("Chat error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     response = result.response

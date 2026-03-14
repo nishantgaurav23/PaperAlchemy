@@ -8,6 +8,7 @@ import { CategoryChart } from "@/components/dashboard/category-chart";
 import { TimelineChart } from "@/components/dashboard/timeline-chart";
 import { HotPapers } from "@/components/dashboard/hot-papers";
 import { TrendingTopics } from "@/components/dashboard/trending-topics";
+import { ScrollFadeIn } from "@/components/animations/scroll-fade-in";
 import type { DashboardData } from "@/types/dashboard";
 
 export default function DashboardPage() {
@@ -21,19 +22,14 @@ export default function DashboardPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const result = await getDashboardData();
+        // Try real API first
+        const { apiClient } = await import("@/lib/api-client");
+        const result = await apiClient.get<DashboardData>("/api/v1/dashboard/stats");
         if (!cancelled) {
           setData(result);
-          // If the API call fell back to mock data (getDashboardData catches errors internally),
-          // we check if we got mock data by trying the real API again
-          try {
-            const { apiClient } = await import("@/lib/api-client");
-            await apiClient.get("/api/v1/dashboard/stats");
-          } catch {
-            setUsingMock(true);
-          }
         }
       } catch {
+        // Fall back to mock data
         if (!cancelled) {
           const result = await getDashboardData(true);
           setData(result);
@@ -49,7 +45,7 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div data-testid="dashboard-page" className="space-y-6 p-6">
+    <div data-testid="dashboard-page" className="space-y-6 p-3 md:p-6">
       <div className="flex items-center gap-3">
         <BarChart3 className="size-7 text-primary" />
         <div>
@@ -64,30 +60,40 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <StatsCards stats={data?.stats ?? null} loading={loading} />
+      <ScrollFadeIn>
+        <StatsCards stats={data?.stats ?? null} loading={loading} />
+      </ScrollFadeIn>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-lg border border-border bg-card p-4">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">Category Breakdown</h2>
-          <CategoryChart categories={data?.categories ?? []} loading={loading} />
-        </section>
+        <ScrollFadeIn delay={100}>
+          <section className="rounded-lg border border-border bg-card p-4">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Category Breakdown</h2>
+            <CategoryChart categories={data?.categories ?? []} loading={loading} />
+          </section>
+        </ScrollFadeIn>
 
-        <section className="rounded-lg border border-border bg-card p-4">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">Publication Timeline</h2>
-          <TimelineChart timeline={data?.timeline ?? []} loading={loading} />
-        </section>
+        <ScrollFadeIn delay={200}>
+          <section className="rounded-lg border border-border bg-card p-4">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Publication Timeline</h2>
+            <TimelineChart timeline={data?.timeline ?? []} loading={loading} />
+          </section>
+        </ScrollFadeIn>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-lg border border-border bg-card p-4">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">Hot Papers</h2>
-          <HotPapers papers={data?.hot_papers ?? []} loading={loading} />
-        </section>
+        <ScrollFadeIn delay={300}>
+          <section className="rounded-lg border border-border bg-card p-4">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Hot Papers</h2>
+            <HotPapers papers={data?.hot_papers ?? []} loading={loading} />
+          </section>
+        </ScrollFadeIn>
 
-        <section className="rounded-lg border border-border bg-card p-4">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">Trending Topics</h2>
-          <TrendingTopics topics={data?.trending_topics ?? []} loading={loading} />
-        </section>
+        <ScrollFadeIn delay={400}>
+          <section className="rounded-lg border border-border bg-card p-4">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Trending Topics</h2>
+            <TrendingTopics topics={data?.trending_topics ?? []} loading={loading} />
+          </section>
+        </ScrollFadeIn>
       </div>
     </div>
   );

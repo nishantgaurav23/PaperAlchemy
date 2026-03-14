@@ -14,7 +14,7 @@ const STATUS_CONFIG: Record<
   { label: string; icon: typeof Loader2; color: string }
 > = {
   uploading: { label: "Uploading...", icon: Loader2, color: "text-primary" },
-  processing: { label: "Processing & analyzing...", icon: Loader2, color: "text-amber-500" },
+  processing: { label: "Generating AI summary, highlights & methodology analysis...", icon: Loader2, color: "text-amber-500" },
   complete: { label: "Analysis complete!", icon: CheckCircle2, color: "text-green-500" },
 };
 

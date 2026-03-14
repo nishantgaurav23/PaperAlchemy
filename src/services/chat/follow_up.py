@@ -11,10 +11,11 @@ import logging
 import re
 from collections.abc import AsyncIterator
 
+from typing import Any
+
 from pydantic import BaseModel
 from src.services.chat.memory import ChatMessage, ConversationMemory
 from src.services.llm.provider import LLMProvider
-from src.services.rag.chain import RAGChain
 from src.services.rag.models import RAGResponse
 
 logger = logging.getLogger(__name__)
@@ -133,7 +134,7 @@ class FollowUpHandler:
         self,
         *,
         llm_provider: LLMProvider,
-        rag_chain: RAGChain,
+        rag_chain: Any,  # RAGChain or AgenticRAGService — duck-typed (aquery + aquery_stream)
         memory: ConversationMemory | None = None,
     ) -> None:
         self._llm = llm_provider

@@ -12,6 +12,7 @@ interface PaperAnalysisProps {
   highlights?: PaperHighlights;
   methodology?: MethodologyAnalysis;
   onRequestAnalysis?: () => void;
+  isAnalyzing?: boolean;
 }
 
 type TabId = "summary" | "highlights" | "methodology";
@@ -27,6 +28,7 @@ export function PaperAnalysis({
   highlights,
   methodology,
   onRequestAnalysis,
+  isAnalyzing = false,
 }: PaperAnalysisProps) {
   const [activeTab, setActiveTab] = useState<TabId>("summary");
 
@@ -37,10 +39,12 @@ export function PaperAnalysis({
       <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-8 text-center">
         <Sparkles className="size-8 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">
-          Analysis not yet available for this paper.
+          {isAnalyzing
+            ? "Generating AI analysis... This may take a moment."
+            : "Analysis not yet available for this paper."}
         </p>
-        <Button variant="outline" onClick={onRequestAnalysis}>
-          Request Analysis
+        <Button variant="outline" onClick={onRequestAnalysis} disabled={isAnalyzing}>
+          {isAnalyzing ? "Analyzing..." : "Request Analysis"}
         </Button>
       </div>
     );
@@ -111,7 +115,7 @@ function SummaryContent({ summary }: { summary: PaperSummary }) {
               <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 {section.label}
               </h3>
-              <p className="text-sm leading-relaxed">{section.value}</p>
+              <p className="text-base leading-relaxed">{section.value}</p>
             </div>
           ),
       )}
@@ -137,7 +141,7 @@ function HighlightsContent({ highlights }: { highlights: PaperHighlights }) {
               </h3>
               <ul className="flex flex-col gap-1.5">
                 {section.items.map((item, i) => (
-                  <li key={i} className="flex gap-2 text-sm leading-relaxed">
+                  <li key={i} className="flex gap-2 text-base leading-relaxed">
                     <span className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
                     {item}
                   </li>
@@ -158,7 +162,7 @@ function MethodologyContent({ methodology }: { methodology: MethodologyAnalysis 
           <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Approach
           </h3>
-          <p className="text-sm leading-relaxed">{methodology.approach}</p>
+          <p className="text-base leading-relaxed">{methodology.approach}</p>
         </div>
       )}
 
@@ -169,7 +173,7 @@ function MethodologyContent({ methodology }: { methodology: MethodologyAnalysis 
           </h3>
           <ul className="flex flex-col gap-1">
             {methodology.datasets.map((ds, i) => (
-              <li key={i} className="flex gap-2 text-sm">
+              <li key={i} className="flex gap-2 text-base">
                 <span className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
                 {ds}
               </li>
@@ -198,7 +202,7 @@ function MethodologyContent({ methodology }: { methodology: MethodologyAnalysis 
           <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Results
           </h3>
-          <p className="text-sm leading-relaxed">{methodology.results}</p>
+          <p className="text-base leading-relaxed">{methodology.results}</p>
         </div>
       )}
 
@@ -207,7 +211,7 @@ function MethodologyContent({ methodology }: { methodology: MethodologyAnalysis 
           <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Statistical Significance
           </h3>
-          <p className="text-sm leading-relaxed">{methodology.statistical_significance}</p>
+          <p className="text-base leading-relaxed">{methodology.statistical_significance}</p>
         </div>
       )}
     </div>

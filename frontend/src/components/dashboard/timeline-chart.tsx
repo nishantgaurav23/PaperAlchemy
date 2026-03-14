@@ -62,7 +62,7 @@ export function TimelineChart({ timeline, loading }: TimelineChartProps) {
               borderColor: "hsl(var(--border))",
               borderRadius: "0.5rem",
             }}
-            formatter={(value: number) => [value, "Papers"]}
+            formatter={(value) => [String(value), "Papers"]}
           />
           <Area
             type="monotone"

@@ -19,7 +19,7 @@ describe("apiClient", () => {
       const result = await apiClient.get("/api/v1/health");
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:8000/api/v1/health",
+        "http://localhost:8002/api/v1/health",
         expect.objectContaining({ method: "GET" }),
       );
       expect(result).toEqual({ status: "ok" });
@@ -37,7 +37,7 @@ describe("apiClient", () => {
       const result = await apiClient.post("/api/v1/search", body);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:8000/api/v1/search",
+        "http://localhost:8002/api/v1/search",
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify(body),
@@ -55,7 +55,7 @@ describe("apiClient", () => {
       await apiClient.post("/api/v1/action");
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:8000/api/v1/action",
+        "http://localhost:8002/api/v1/action",
         expect.objectContaining({
           method: "POST",
           body: undefined,
@@ -121,7 +121,7 @@ describe("apiClient", () => {
       await apiClient.put("/api/v1/item/1", { name: "updated" });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:8000/api/v1/item/1",
+        "http://localhost:8002/api/v1/item/1",
         expect.objectContaining({ method: "PUT" }),
       );
     });
@@ -137,7 +137,7 @@ describe("apiClient", () => {
       await apiClient.delete("/api/v1/item/1");
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:8000/api/v1/item/1",
+        "http://localhost:8002/api/v1/item/1",
         expect.objectContaining({ method: "DELETE" }),
       );
     });

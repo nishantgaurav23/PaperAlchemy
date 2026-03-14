@@ -1,7 +1,8 @@
 """Agent node functions for the LangGraph agentic RAG workflow."""
 
 from src.services.agents.nodes.generate_answer_node import (
-    GENERATION_PROMPT,
+    GENERATION_PROMPT_KB,
+    GENERATION_PROMPT_WEB,
     NO_SOURCES_MESSAGE,
     ainvoke_generate_answer_step,
     build_generation_prompt,
@@ -29,7 +30,8 @@ from src.services.agents.nodes.rewrite_query_node import (
 )
 
 __all__ = [
-    "GENERATION_PROMPT",
+    "GENERATION_PROMPT_KB",
+    "GENERATION_PROMPT_WEB",
     "GRADING_PROMPT",
     "GUARDRAIL_PROMPT",
     "NO_SOURCES_MESSAGE",

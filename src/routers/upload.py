@@ -7,7 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 
-from src.dependency import EmbeddingsDep, OpenSearchDep, PaperRepoDep, SessionDep
+from src.dependency import EmbeddingsDep, LLMProviderDep, OpenSearchDep, PaperRepoDep, SessionDep
 from src.exceptions import PDFParsingError, PDFValidationError
 from src.schemas.api.upload import UploadResponse
 from src.services.indexing.text_chunker import TextChunker
@@ -60,8 +60,9 @@ async def upload_pdf(
     text_chunker: TextChunkerDep,
     embeddings: EmbeddingsDep,
     opensearch: OpenSearchDep,
+    llm_provider: LLMProviderDep,
 ) -> UploadResponse:
-    """Upload a PDF paper, parse it, store metadata, and index for retrieval."""
+    """Upload a PDF paper, parse it, store metadata, index, and run AI analysis."""
     try:
         return await upload_service.process_upload(
             file=file,
@@ -71,6 +72,7 @@ async def upload_pdf(
             text_chunker=text_chunker,
             embeddings_client=embeddings,
             opensearch_client=opensearch,
+            llm_provider=llm_provider,
         )
     except PDFValidationError as e:
         status = e.status_code if e.status_code != 500 else 422

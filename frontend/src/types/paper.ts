@@ -16,10 +16,12 @@ export interface PaperSection {
 
 export interface PaperDetail extends Paper {
   sections?: PaperSection[];
+  parsing_status?: string;
+  pdf_content?: string;
   summary?: {
     objective: string;
     method: string;
-    key_findings: string;
+    key_findings: string[];
     contribution: string;
     limitations: string;
   };
@@ -30,9 +32,10 @@ export interface PaperDetail extends Paper {
   };
   methodology?: {
     approach: string;
-    datasets: string[];
+    datasets: Array<{ name: string; description?: string; size?: string }> | string[];
     baselines: string[];
-    results: string;
+    key_results: Array<{ metric: string; value: string; comparison?: string }> | string[];
+    results?: string; // legacy compat
     statistical_significance?: string;
   };
 }
@@ -41,14 +44,31 @@ export interface RelatedPapersResponse {
   papers: Paper[];
 }
 
-export interface SearchResponse {
-  papers: Paper[];
-  total: number;
-  page: number;
-  page_size: number;
-  total_pages: number;
+/** Mirrors backend SearchHit from POST /api/v1/search */
+export interface SearchHit {
+  arxiv_id: string;
+  title: string;
+  authors: string[];
+  abstract: string;
+  pdf_url: string;
+  score: number;
+  highlights: Record<string, unknown>;
+  chunk_text: string;
+  chunk_id: string;
+  section_title?: string | null;
 }
 
+/** Mirrors backend SearchResponse from POST /api/v1/search */
+export interface SearchResponse {
+  query: string;
+  total: number;
+  hits: SearchHit[];
+  size: number;
+  from: number;
+  search_mode: string;
+}
+
+/** Parameters the frontend search UI collects */
 export interface SearchParams {
   q?: string;
   category?: string;
@@ -76,3 +96,22 @@ export const SORT_OPTIONS = [
 ] as const;
 
 export const PAGE_SIZE = 20;
+
+/** Mirrors backend ArxivSearchHit from POST /api/v1/search/arxiv */
+export interface ArxivSearchHit {
+  arxiv_id: string;
+  title: string;
+  authors: string[];
+  abstract: string;
+  categories: string[];
+  published_date: string;
+  pdf_url: string;
+  arxiv_url: string;
+}
+
+/** Mirrors backend ArxivSearchResponse from POST /api/v1/search/arxiv */
+export interface ArxivSearchResponse {
+  query: string;
+  total: number;
+  hits: ArxivSearchHit[];
+}

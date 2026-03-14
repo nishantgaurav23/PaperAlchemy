@@ -140,7 +140,7 @@ class MultiQueryService:
         async def _search_one(q: str) -> list[SearchHit]:
             try:
                 embedding = await self._embeddings.embed_query(q)
-                raw = self._opensearch.search_chunks_hybrid(
+                raw = await self._opensearch.asearch_chunks_hybrid(
                     query=q,
                     query_embedding=embedding,
                     size=top_k,

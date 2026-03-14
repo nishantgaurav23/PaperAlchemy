@@ -1,8 +1,13 @@
 export interface ChatSource {
   title: string;
   authors: string[];
-  year: number;
+  year?: number;
   arxiv_id: string;
+  arxiv_url?: string;
+  url?: string;
+  index?: number;
+  score?: number;
+  source_type?: "knowledge_base" | "arxiv" | "web";
 }
 
 export interface ChatMessage {
@@ -10,6 +15,7 @@ export interface ChatMessage {
   role: "user" | "assistant" | "error";
   content: string;
   sources?: ChatSource[];
+  suggested_followups?: string[];
   timestamp: number;
 }
 

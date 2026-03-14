@@ -6,6 +6,7 @@ langchain_google_genai.ChatGoogleGenerativeAI for LangGraph agent nodes.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 
@@ -46,7 +47,8 @@ class GeminiProvider:
         )
 
         try:
-            result = self._client.models.generate_content(
+            result = await asyncio.to_thread(
+                self._client.models.generate_content,
                 model=model_name,
                 contents=prompt,
                 config=config,
@@ -75,12 +77,18 @@ class GeminiProvider:
         )
 
         try:
-            stream = self._client.models.generate_content_stream(
+            stream = await asyncio.to_thread(
+                self._client.models.generate_content_stream,
                 model=model_name,
                 contents=prompt,
                 config=config,
             )
-            for chunk in stream:
+            # The stream is a synchronous iterator from the genai SDK;
+            # yield chunks via to_thread to avoid blocking the event loop.
+            while True:
+                chunk = await asyncio.to_thread(next, stream, None)
+                if chunk is None:
+                    break
                 if chunk.text:
                     yield chunk.text
         except TimeoutError as exc:
@@ -92,7 +100,7 @@ class GeminiProvider:
 
     async def health_check(self) -> HealthStatus:
         try:
-            models = list(self._client.models.list())
+            models = await asyncio.to_thread(lambda: list(self._client.models.list()))
             return HealthStatus(
                 healthy=True,
                 provider="gemini",

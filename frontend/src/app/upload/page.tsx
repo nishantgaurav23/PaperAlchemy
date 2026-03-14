@@ -21,8 +21,13 @@ export default function UploadPage() {
     setStatus("uploading");
 
     try {
-      setStatus("processing");
-      const response = await uploadPdf(file);
+      setStatus("uploading");
+      // Show processing state while AI analysis runs (may take 30-60s)
+      const uploadPromise = uploadPdf(file);
+      // Switch to "processing" after a brief delay to show upload succeeded
+      const timer = setTimeout(() => setStatus("processing"), 2000);
+      const response = await uploadPromise;
+      clearTimeout(timer);
       setResult(response);
       setStatus("complete");
     } catch (err) {

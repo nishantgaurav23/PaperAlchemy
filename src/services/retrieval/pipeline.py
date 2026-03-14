@@ -96,7 +96,14 @@ class RetrievalPipeline:
 
         if tasks:
             start = time.monotonic()
-            outcomes = await asyncio.gather(*tasks, return_exceptions=True)
+            try:
+                outcomes = await asyncio.wait_for(
+                    asyncio.gather(*tasks, return_exceptions=True),
+                    timeout=30.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Query expansion timed out after 30s, skipping")
+                outcomes = [TimeoutError("expansion timeout")] * len(tasks)
             expansion_time = time.monotonic() - start
 
             for label, outcome in zip(task_labels, outcomes, strict=True):
@@ -120,7 +127,7 @@ class RetrievalPipeline:
         start = time.monotonic()
         try:
             embedding = await self._embeddings.embed_query(query)
-            raw = self._opensearch.search_chunks_hybrid(
+            raw = await self._opensearch.asearch_chunks_hybrid(
                 query=query,
                 query_embedding=embedding,
                 size=retrieval_top_k,
@@ -166,6 +173,9 @@ class RetrievalPipeline:
                 logger.warning("Parent expansion failed, returning child chunks", exc_info=True)
                 result.timings["parent_expand"] = time.monotonic() - start
 
+        # ── Stage 6: Paper-level dedup ────────────────────────────
+        merged = self._deduplicate_by_paper(merged)
+
         result.results = merged[:final_top_k]
         return result
 
@@ -185,4 +195,18 @@ class RetrievalPipeline:
             cid = hit.chunk_id
             if cid not in best or hit.score > best[cid].score:
                 best[cid] = hit
+        return list(best.values())
+
+    @staticmethod
+    def _deduplicate_by_paper(hits: list[SearchHit]) -> list[SearchHit]:
+        """Deduplicate hits by arxiv_id, keeping the highest-scoring chunk per paper.
+
+        Multiple chunks from the same paper are collapsed into one entry so that
+        the final source list shows each paper only once.
+        """
+        best: dict[str, SearchHit] = {}
+        for hit in hits:
+            key = hit.arxiv_id or hit.chunk_id  # fall back to chunk_id if no arxiv_id
+            if key not in best or hit.score > best[key].score:
+                best[key] = hit
         return list(best.values())

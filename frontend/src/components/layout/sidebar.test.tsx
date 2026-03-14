@@ -5,6 +5,7 @@ import { Sidebar } from "./sidebar";
 
 vi.mock("next/navigation", () => ({
   usePathname: vi.fn(() => "/"),
+  useRouter: vi.fn(() => ({ push: vi.fn() })),
 }));
 
 vi.mock("next-themes", () => ({
@@ -84,5 +85,22 @@ describe("Sidebar", () => {
   it("renders navigation as a nav element with accessible label", () => {
     render(<Sidebar />);
     expect(screen.getByRole("navigation", { name: /main/i })).toBeInTheDocument();
+  });
+
+  // S13.5: Gradient logo mark
+  it("renders gradient logo mark container", () => {
+    render(<Sidebar />);
+    const logoMark = screen.getByTestId("logo-mark");
+    expect(logoMark).toBeInTheDocument();
+    expect(logoMark.className).toMatch(/gradient/);
+  });
+
+  // S13.5: Smooth collapse animation
+  it("applies smooth transition classes on sidebar", () => {
+    render(<Sidebar />);
+    const aside = screen.getByRole("complementary");
+    expect(aside.className).toMatch(/transition/);
+    expect(aside.className).toMatch(/duration/);
+    expect(aside.className).toMatch(/ease/);
   });
 });

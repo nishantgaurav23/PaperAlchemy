@@ -4,6 +4,7 @@ import { Header } from "./header";
 
 vi.mock("next/navigation", () => ({
   usePathname: vi.fn(() => "/search"),
+  useRouter: vi.fn(() => ({ push: vi.fn() })),
 }));
 
 vi.mock("next-themes", () => ({
@@ -24,6 +25,11 @@ describe("Header", () => {
   it("renders theme toggle", () => {
     render(<Header />);
     expect(screen.getByRole("button", { name: /toggle theme/i })).toBeInTheDocument();
+  });
+
+  it("renders notification bell", () => {
+    render(<Header />);
+    expect(screen.getByRole("button", { name: /notification/i })).toBeInTheDocument();
   });
 
   it("renders mobile menu button on small screens", () => {

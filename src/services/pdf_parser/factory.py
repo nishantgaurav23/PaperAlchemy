@@ -16,6 +16,7 @@ def make_pdf_parser_service() -> PDFParserService:
         max_pages=settings.pdf_parser.max_pages,
         max_file_size_mb=settings.pdf_parser.max_file_size_mb,
         timeout=settings.pdf_parser.timeout,
+        enable_docling_fallback=settings.pdf_parser.enable_docling_fallback,
     )
 
 

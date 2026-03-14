@@ -1,20 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { uploadPdf, MOCK_RESPONSE } from "./upload";
+import { MOCK_RESPONSE } from "./upload";
 
 describe("uploadPdf", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("returns mock data in development mode", async () => {
-    const file = new File(["pdf"], "test.pdf", { type: "application/pdf" });
-    const result = await uploadPdf(file);
-
-    expect(result).toEqual(MOCK_RESPONSE);
-    expect(result.paper.title).toBe("Attention Is All You Need");
-    expect(result.summary.objective).toBeTruthy();
-    expect(result.highlights.novel_contributions.length).toBeGreaterThan(0);
-    expect(result.methodology.datasets.length).toBeGreaterThan(0);
+  it("MOCK_RESPONSE has correct paper fields", () => {
+    expect(MOCK_RESPONSE.paper.title).toBe("Attention Is All You Need");
+    expect(MOCK_RESPONSE.summary.objective).toBeTruthy();
+    expect(MOCK_RESPONSE.highlights.novel_contributions.length).toBeGreaterThan(0);
+    expect(MOCK_RESPONSE.methodology.datasets.length).toBeGreaterThan(0);
   });
 
   it("mock response has required fields", () => {

@@ -29,7 +29,7 @@ Clean dependency declaration for PaperAlchemy using UV package manager. The `pyp
 ### How It Was Done
 - Rewrote `pyproject.toml` with grouped dependencies: web (FastAPI, Uvicorn), database (SQLAlchemy async, asyncpg), search (opensearch-py), LLM (LangChain, LangGraph, Gemini), embeddings (sentence-transformers), caching (Redis), evaluation (RAGAS), PDF parsing (Docling)
 - Replaced sync drivers with async alternatives: `psycopg2-binary` → `asyncpg`, `requests` → `httpx`
-- Added `langchain-google-genai` for Gemini 3 Flash cloud LLM
+- Added `langchain-google-genai` for Gemini cloud LLM
 - Added `ragas` for RAG evaluation framework and `sentence-transformers` for cross-encoder re-ranking
 - Added `aiofiles` for async file I/O (PDF downloads, uploads, temp files)
 - Added `sse-starlette` for Server-Sent Events streaming (token-by-token responses)
@@ -97,7 +97,7 @@ Every service in PaperAlchemy needs connection details. This spec provides a **s
 - Async PostgreSQL URL (`postgresql+asyncpg://`) for SQLAlchemy async engine
 - Sync PostgreSQL URL for Alembic migrations
 - Redis URL with optional password handling
-- GeminiSettings for Google Gemini 3 Flash (cloud LLM)
+- GeminiSettings for Google Gemini (cloud LLM)
 - JinaSettings for Jina AI embeddings (1024-dim, batch 100)
 - RerankerSettings for cross-encoder re-ranking (ms-marco-MiniLM-L-12-v2)
 - Cached singleton via `get_settings()` with `@lru_cache`
@@ -591,10 +591,10 @@ This completes Phase 3 (Data Layer) — PaperAlchemy now has a **fully automated
 **Phase:** P9 (Frontend) | **Status:** done
 
 ### What Was Done
-Next.js 15 frontend application scaffolded with TypeScript strict mode, Tailwind CSS v4, shadcn/ui component library, dark mode via next-themes, Vitest testing with React Testing Library, and a typed API client for communicating with the FastAPI backend.
+Next.js 16 frontend application scaffolded with TypeScript strict mode, Tailwind CSS v4, shadcn/ui component library, dark mode via next-themes, Vitest testing with React Testing Library, and a typed API client for communicating with the FastAPI backend.
 
 ### How It Was Done
-- Scaffolded Next.js 15 with `create-next-app` using App Router, TypeScript, Tailwind CSS v4, `src/` directory, pnpm package manager
+- Scaffolded Next.js 16 with `create-next-app` using App Router, TypeScript, Tailwind CSS v4, `src/` directory, pnpm package manager
 - Initialized shadcn/ui with Button component as proof of integration
 - Added `next-themes` ThemeProvider wrapping the app in `layout.tsx` with `suppressHydrationWarning` for SSR hydration safety
 - Created `ThemeToggle` component using lucide-react icons (Sun/Moon) and `useTheme` hook
@@ -607,7 +607,7 @@ Next.js 15 frontend application scaffolded with TypeScript strict mode, Tailwind
 This is the **frontend foundation** — every Phase 9 spec (search, chat, upload, dashboard, export) builds on this project setup. The Vitest + React Testing Library configuration enables TDD for all frontend specs. The API client provides typed communication with the FastAPI backend. Dark mode support is baked in from day one.
 
 ### Core Features
-- Next.js 15 with App Router, TypeScript strict mode, `src/` directory
+- Next.js 16 with App Router, TypeScript strict mode, `src/` directory
 - Tailwind CSS v4 with CSS variables for light/dark themes
 - shadcn/ui component library with Button component
 - Dark mode toggle (light/dark/system) via next-themes
@@ -1108,12 +1108,12 @@ Central paper view page — every paper in the system needs a canonical detail p
 
 ---
 
-## S5.1 — Unified LLM Client (Ollama + Gemini 3 Flash)
+## S5.1 — Unified LLM Client (Ollama + Gemini)
 
 **Phase**: P5 (RAG Pipeline) | **Status**: done | **Date**: 2026-03-11
 
 ### What
-Provider-abstracted LLM client supporting both local (Ollama) and cloud (Gemini 3 Flash) inference. Defines a common `LLMProvider` protocol so callers never couple to a specific backend.
+Provider-abstracted LLM client supporting both local (Ollama) and cloud (Gemini) inference. Defines a common `LLMProvider` protocol so callers never couple to a specific backend.
 
 ### How
 - `LLMProvider` protocol (runtime_checkable) with `generate()`, `generate_stream()`, `health_check()`, `get_langchain_model()`, `close()`
@@ -2167,3 +2167,452 @@ Enables researchers to systematically compare multiple papers — identifying me
 
 ### Dependencies Unlocked
 - **S19.1** (Multi-Paper Q&A) — depends on S6.7 + S8.5
+
+---
+
+## S9b.2 — Platform Dependency Declaration
+
+**Phase**: P9b (Platform Foundation) | **Status**: done | **Date**: 2026-03-13
+
+### What
+Added 6 new Python dependency groups to `pyproject.toml` and corresponding environment variables to `.env.example`, enabling phases P14 (auth), P19 (slides), P22 (code gen), and P23 (audio/podcast).
+
+### How
+- Added `anthropic>=0.52.0` for Claude API access (P22 paper-to-code generation)
+- Added `python-jose[cryptography]>=3.3.0` + `passlib[bcrypt]>=1.7.4` for JWT auth and password hashing (P14 user auth)
+- Added `websockets>=14.0` for real-time comment transport (P14 discussions)
+- Added `edge-tts>=7.0.0` for free Microsoft Edge text-to-speech (P23 podcast generation)
+- Added `python-pptx>=1.0.0` for PowerPoint slide generation (P19 advanced AI)
+- Updated `.env.example` with `ANTHROPIC__*`, `AUTH__*`, and `TTS__*` config sections
+
+### Why
+P9b is the "platform foundation" bridge phase. Before implementing features in P14-P23, all required dependencies must be declared and resolvable together. This ensures no version conflicts surface mid-implementation and that all downstream specs can import what they need.
+
+### Core Features
+- 6 new dependency groups (anthropic, auth, websockets, tts, slides)
+- 3 new `.env.example` config sections (Anthropic, Auth, TTS)
+- All dependencies resolve cleanly with `uv sync` (330 packages total)
+- Note: passlib has compatibility issues with bcrypt 5.x — tests use `bcrypt` directly for hashing roundtrips
+
+### Key Files
+- `pyproject.toml` — Updated with new dependencies
+- `.env.example` — Updated with new environment variables
+- `tests/unit/test_platform_deps.py` — 9 tests (import checks + functional roundtrips)
+- `notebooks/specs/S9b.2_platform_deps.ipynb` — Interactive verification
+
+### Dependencies Unlocked
+- **S5b.1** (Anthropic Provider) — depends on S5.1 + S9b.2
+- **S14.1** (User Auth) — depends on S2.4 + S9b.1 + S9b.2 + S9b.4
+- **S22.2** (Code Generation Agent) — depends on S22.1 + S6.7 + S9b.2
+- **S23.2** (Text-to-Speech) — depends on S23.1 + S9b.2 + S9b.7
+
+---
+
+## S9b.1 — Alembic Migration Setup
+
+**Phase**: P9b (Platform Foundation) | **Date**: 2026-03-13
+
+### What
+Initialized Alembic for async PostgreSQL database migrations. Created the initial migration for the `papers` table and added Makefile convenience commands.
+
+### How
+- **alembic.ini**: Standard config with `script_location = alembic`, DB URL set programmatically (not hardcoded)
+- **alembic/env.py**: Custom async env.py using `async_engine_from_config` + `asyncpg`, imports `Base.metadata` from `src.db.base`, imports all models via `src.models` for autogenerate detection, reads DB URL from `src.config.get_settings()`
+- **Initial migration**: `7fa2bf4a9f17_create_papers_table.py` — creates `papers` table with all 15 columns (id, arxiv_id, title, authors, abstract, categories, published_date, updated_date, pdf_url, pdf_content, sections, parsing_status, parsing_error, created_at, updated_at) plus 3 indexes
+- **Makefile targets**: `db-migrate msg="..."` (autogenerate), `db-upgrade` (apply head), `db-downgrade` (revert -1)
+
+### Why
+Required for all future ORM models (User, Comment, Vote, Note, Avatar, Collection, etc.) in P14+. Replaces the `create_tables()` approach with proper version-controlled migrations.
+
+### Key Files
+- `alembic.ini` — Alembic config
+- `alembic/env.py` — Async migration environment
+- `alembic/versions/7fa2bf4a9f17_create_papers_table.py` — Initial migration
+- `Makefile` — db-migrate, db-upgrade, db-downgrade targets
+- `tests/unit/test_alembic_setup.py` — 24 tests (structural/config validation)
+- `notebooks/specs/S9b.1_alembic.ipynb` — Interactive verification
+
+### Dependencies Unlocked
+- **S14.1** (User Auth) — depends on S2.4 + S9b.1 + S9b.2 + S9b.4
+
+---
+
+## S9b.3 — Frontend Infrastructure Dependencies
+
+### What
+Added 10 npm packages to the Next.js frontend required by P13–P23 feature phases: markdown rendering, animations, global state, toasts, command palette, and form validation. Also added jsdom polyfills for test environment compatibility.
+
+### How
+- Installed `react-markdown` + `remark-gfm` + `rehype-highlight` (markdown rendering for chat)
+- Installed `framer-motion` (page transitions, micro-interactions)
+- Installed `zustand` (lightweight global state management)
+- Installed `sonner` (toast notifications)
+- Installed `cmdk` (Cmd+K command palette)
+- Installed `react-hook-form` + `@hookform/resolvers` + `zod` (type-safe form validation)
+- Added `ResizeObserver` and `Element.scrollIntoView` polyfills to Vitest setup for jsdom compatibility (needed by cmdk, recharts)
+- TDD: wrote 16 smoke tests verifying imports, rendering, store creation, and schema validation before installing packages
+
+### Why
+This is the frontend dependency foundation for all P13–P23 UI features. Without these packages, no downstream spec (chat polish, animations, auth forms, command palette, etc.) can begin implementation. The jsdom polyfills also fix test environment issues that would block component testing for cmdk and similar libraries.
+
+### Core Features
+- Markdown rendering pipeline (react-markdown + GFM + syntax highlighting)
+- Framer Motion animation library for React 19 + Next.js 16
+- Zustand state management (SSR-compatible, minimal boilerplate)
+- Sonner toast notifications
+- cmdk command palette component
+- React Hook Form + Zod type-safe validation
+- jsdom polyfills (ResizeObserver, scrollIntoView) in test setup
+
+### Key Files
+- `frontend/package.json` — 10 new dependencies added
+- `frontend/pnpm-lock.yaml` — lockfile updated
+- `frontend/src/test/setup.ts` — jsdom polyfills for ResizeObserver + scrollIntoView
+- `frontend/src/lib/infra-deps.test.tsx` — 16 smoke tests (import + functional)
+
+### Dependencies Unlocked
+- **S9b.4** (Frontend Auth Infrastructure) — auth context, token storage, protected routes
+- **S9b.5** (Frontend UI Primitives) — Dialog, Tabs, Toast container, Command palette, Sheet
+- **S13.3** (Chat UX Polish) — markdown rendering, citation cards, typing indicator (also needs S9.4)
+- **S13.6** (Micro-Interactions) — page transitions, skeleton loaders, toast animations (also needs S9.1)
+
+---
+
+## S9b.5 — Missing UI Primitives
+**Phase**: P9b (Platform Foundation) | **Status**: Done | **Date**: 2026-03-13
+
+### What Was Done
+Added 11 shadcn/ui (base-nova style) components to fill the UI primitive gaps needed by P13–P23 feature phases. Each component has a co-located Vitest test file with accessibility and interaction coverage.
+
+### How It Was Done
+- Installed 7 Radix UI packages (`@radix-ui/react-dialog`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-popover`, `@radix-ui/react-tabs`, `@radix-ui/react-checkbox`, `@radix-ui/react-tooltip`, `@radix-ui/react-avatar`)
+- Leveraged already-installed `cmdk` and `sonner` packages (from S9b.3)
+- All components follow the existing pattern: `"use client"` directive, `data-slot` attributes, `cn()` utility, CVA variants (Sheet), Radix primitives underneath
+- TDD approach: wrote 43 tests first (all failing), then implemented components to pass
+- Used `@testing-library/react` + `@testing-library/user-event` for interaction tests
+
+### Why It Matters
+These are the building blocks for every upcoming UI feature. Without Dialog, Tabs, Command, Sheet, and Tooltip, P13 (UI Enhancement) and P14 (Community) cannot build their interfaces. The Command component specifically enables the Cmd+K palette (S13.5), Sheet enables mobile drawers (S13.7), and Avatar/Tooltip/DropdownMenu enable the community features (S14.6).
+
+### Core Features
+- **Dialog/Modal** — accessible overlay with focus trap, escape-to-close, header/footer sections
+- **Dropdown Menu** — items, checkboxes, radio groups, sub-menus, separators, keyboard navigation
+- **Popover** — floating anchored content with auto-placement
+- **Tabs** — tabbed content panels with keyboard navigation and active state styling
+- **Textarea** — styled multi-line input with consistent design tokens
+- **Checkbox** — checked/unchecked/indeterminate states with Radix accessibility
+- **Tooltip** — hover/focus tooltips with delay and collision avoidance
+- **Avatar** — image with initials fallback on load failure
+- **Toast (Sonner)** — notification container with themed toast options
+- **Command (cmdk)** — command palette with search filtering, groups, empty state
+- **Sheet** — slide-in panel from any edge (top/right/bottom/left) for mobile navigation
+
+### Key Files
+- `frontend/src/components/ui/dialog.tsx` + `dialog.test.tsx` (4 tests)
+- `frontend/src/components/ui/dropdown-menu.tsx` + `dropdown-menu.test.tsx` (3 tests)
+- `frontend/src/components/ui/popover.tsx` + `popover.test.tsx` (3 tests)
+- `frontend/src/components/ui/tabs.tsx` + `tabs.test.tsx` (4 tests)
+- `frontend/src/components/ui/textarea.tsx` + `textarea.test.tsx` (5 tests)
+- `frontend/src/components/ui/checkbox.tsx` + `checkbox.test.tsx` (4 tests)
+- `frontend/src/components/ui/tooltip.tsx` + `tooltip.test.tsx` (3 tests)
+- `frontend/src/components/ui/avatar.tsx` + `avatar.test.tsx` (3 tests)
+- `frontend/src/components/ui/sonner.tsx` + `sonner.test.tsx` (2 tests)
+- `frontend/src/components/ui/command.tsx` + `command.test.tsx` (3 tests)
+- `frontend/src/components/ui/sheet.tsx` + `sheet.test.tsx` (4 tests)
+- `frontend/package.json` — 7 new Radix UI dependencies
+
+### Dependencies Unlocked
+- **S13.5** (Sidebar Navigation) — needs Command for Cmd+K palette, Tooltip for icon hints (also needs S9.2)
+- **S14.6** (Community Frontend) — needs Avatar, Tooltip, DropdownMenu for user profiles and interactions (also needs S14.1-S14.5, S9.6)
+
+---
+
+## S9b.4 — Frontend Auth Infrastructure
+
+**Status**: Done | **Phase**: P9b (Platform Foundation) | **Date**: 2026-03-13
+
+### What Was Done
+Built the complete frontend authentication infrastructure: auth types with Zod runtime validation, a zustand-based auth store with login/signup/logout actions, an API client auth interceptor (Bearer token injection + 401 auto-logout), a ProtectedRoute wrapper component, and three page shells for /login, /signup, and /forgot-password — all with react-hook-form + zod validation.
+
+### How It Was Done
+- **Auth types** (`types/auth.ts`): Zod schemas for User, LoginRequest/Response, SignupRequest/Response, ForgotPasswordRequest — TypeScript types inferred from schemas via `z.infer<>` for zero drift between runtime validation and compile-time types.
+- **Auth store** (`lib/auth/store.ts`): Zustand store with `create<AuthState & AuthActions>()`. Token persisted in `sessionStorage` (SSR-safe — guarded by `typeof window` checks). Login/signup call backend API, parse response with Zod, and atomically update state.
+- **Interceptor** (`lib/auth/interceptor.ts`): `createAuthenticatedFetch()` wraps any fetch function, auto-attaching `Authorization: Bearer <token>` header when authenticated, clearing auth state on 401 responses (but NOT on 403 — permission denied ≠ unauthenticated).
+- **ProtectedRoute** (`components/auth/protected-route.tsx`): Client component using `useEffect` for SSR-safe redirect. Shows loading spinner during auth check, redirects to `/login?redirect={currentPath}` when unauthenticated, renders children when authenticated.
+- **Page shells**: Login, signup, and forgot-password pages using react-hook-form + zodResolver with `noValidate` (Zod handles all validation, not HTML5). Forms show field-level errors, disable submit while loading, and use sonner for error toasts.
+- **Header integration**: Sign in/Sign out button added to app header, conditionally rendered based on `isAuthenticated`.
+
+### Why It Matters
+This is the **client-side auth foundation** for all authenticated features. P14 (Community — comments, voting, profiles), P15 (Annotations — highlights, notes), P17 (Collaboration — shared collections), and P18 (Integrations — API keys) all require user authentication. Without this infrastructure, none of those phases can build their frontends. The interceptor pattern ensures every API call automatically includes credentials once the user is logged in.
+
+### Core Features
+- 7 Zod schemas with runtime validation for all auth API payloads
+- Zustand auth store with login/signup/logout/clearAuth/setToken/refreshUser actions
+- Token persistence in sessionStorage (SSR-safe)
+- API interceptor with auto Bearer token injection and 401 auto-logout
+- ProtectedRoute wrapper with loading state and redirect preservation
+- Login page with email + password validation
+- Signup page with name, email, password (must include number), confirm password, optional affiliation
+- Forgot password page with email-only form and success feedback
+- Header Sign in / Sign out integration
+- 56 Vitest tests across 7 test files
+
+### Key Files
+- `frontend/src/types/auth.ts` — Zod schemas + TypeScript types (55 lines)
+- `frontend/src/lib/auth/store.ts` — Zustand auth store (131 lines)
+- `frontend/src/lib/auth/interceptor.ts` — Authenticated fetch wrapper (21 lines)
+- `frontend/src/lib/auth/index.ts` — Barrel export
+- `frontend/src/components/auth/protected-route.tsx` — Route guard component (40 lines)
+- `frontend/src/app/(auth)/login/page.tsx` — Login page (98 lines)
+- `frontend/src/app/(auth)/signup/page.tsx` — Signup page (152 lines)
+- `frontend/src/app/(auth)/forgot-password/page.tsx` — Forgot password page (85 lines)
+- `frontend/src/components/layout/header.tsx` — Updated with auth UI
+
+### Dependencies Unlocked
+- **S14.1** (User Authentication & Profiles) — needs S9b.4 for frontend auth types, store, and page shells to wire backend auth API into
+
+---
+
+## S9b.7 — Docker Platform Services
+
+**Phase:** P9b (Platform Foundation) | **Status:** Done | **Date:** 2026-03-13
+
+### What
+Added Docker Compose services for MinIO (S3-compatible object storage) and a Docker-in-Docker sandbox, plus updated the API service with platform environment variables (MinIO, sandbox, Anthropic, TTS, Auth).
+
+### How
+- **MinIO** service (profile: `platform`) on ports 9100/9101, auto-creates `paperalchemy` bucket via entrypoint
+- **Sandbox** service (Docker-in-Docker `docker:27-dind`, privileged) for sandboxed code execution
+- API service env updated with `MINIO__*`, `SANDBOX__*` vars pointing to internal service hostnames
+- `.env.example` updated with MinIO and sandbox vars for local development
+- Makefile `platform` target (`make platform`) to bring up platform services
+- Down/clean targets updated to include `--profile platform`
+
+### Why
+P22 (Paper-to-Code) needs a sandboxed execution environment for generated code, and P23 (Audio/Podcast) needs S3-compatible storage for audio files. This spec provides the infrastructure layer that those features will build on.
+
+### Tests
+- 27 tests in `tests/unit/test_docker_platform_services.py` — validates compose.yml structure, service configs, API env vars, .env.example vars, Makefile target, and volume declarations
+
+### Key Files
+- `compose.yml` — Added `minio` and `sandbox` services, `minio_data`/`sandbox_data` volumes, API env vars
+- `.env.example` — Added `MINIO__*` and `SANDBOX__*` sections
+- `Makefile` — Added `platform`/`up-platform` targets, updated down/clean with `--profile platform`
+
+### Dependencies Unlocked
+- **S11b.1** (Platform Monitoring) — health checks for MinIO, sandbox
+- **S11b.2** (Platform Ops Guide) — MinIO admin, sandbox lifecycle docs
+- **S11b.3** (Platform Deploy) — Cloud Storage replaces MinIO in prod
+- **S22.3** (Code Sandbox) — uses sandbox service
+- **S23.2** (Text-to-Speech) — stores audio in MinIO
+
+---
+
+## S9b.6 — Collections Backend API
+
+**Date**: 2026-03-13 | **Phase**: P9b (Platform Foundation)
+
+### What
+Backend API for paper collections — migrating from frontend localStorage to a proper database-backed system with full CRUD operations and paper management.
+
+### How
+- **Collection model** (`src/models/collection.py`): UUID PK, name, description, nullable user_id (pre-auth), timestamps, M2M relationship to Papers via `collection_papers` association table with CASCADE deletes
+- **CollectionRepository** (`src/repositories/collection.py`): Async CRUD (create, get_by_id, list_all, update, delete), paper operations (add_paper idempotent, remove_paper), count with optional user_id filter
+- **Pydantic schemas** (`src/schemas/collection.py`): CollectionCreate, CollectionUpdate, CollectionResponse (with paper_count), CollectionDetailResponse (with papers list), CollectionPaperAction
+- **REST API** (`src/routers/collections.py`): 7 endpoints under `/api/v1/collections` — GET list, POST create (201), GET detail, PUT update, DELETE (204), POST add paper, DELETE remove paper
+- **DI wiring**: CollectionRepoDep in `src/dependency.py`, router registered in `src/main.py`
+
+### Why
+P15 (Annotations & Notebooks) and P17 (Shared Collections) both require server-side collection management. Moving collections to the backend enables multi-device sync, sharing, and team collaboration features.
+
+### Tests
+- 48 tests in `tests/unit/test_collections.py` — covers model structure, repository CRUD, paper operations (add/remove/idempotent), schema validation, and all 7 API endpoints with error cases
+
+### Key Files
+- `src/models/collection.py` — Collection ORM model + `collection_papers` M2M table
+- `src/repositories/collection.py` — CollectionRepository (async CRUD + paper ops)
+- `src/schemas/collection.py` — Pydantic request/response schemas
+- `src/routers/collections.py` — REST API endpoints
+- `src/dependency.py` — CollectionRepoDep injection
+- `src/main.py` — Router registration
+
+### Dependencies Unlocked
+- **S17.1** (Shared Collections) — team-based collection sharing
+- **S15.x** (Annotations) — collection-scoped annotations
+
+---
+
+## S5b.1 — Anthropic Claude LLM Provider
+
+**What:** Added `AnthropicProvider` implementing the `LLMProvider` protocol for Anthropic Claude models (Opus/Sonnet/Haiku).
+
+**How:**
+- Created `AnthropicSettings` (Pydantic `BaseSettings`, `ANTHROPIC__` env prefix) with api_key, model, temperature, max_tokens, timeout
+- Implemented `AnthropicProvider` in `src/services/llm/anthropic_provider.py` using `anthropic.AsyncAnthropic` for async generation
+- Non-streaming via `messages.create()`, streaming via `messages.stream()` context manager
+- LangChain integration via `ChatAnthropic` from `langchain-anthropic`
+- Error mapping: `AuthenticationError` → `ConfigurationError`, `APITimeoutError` → `LLMTimeoutError`, `APIConnectionError` → `LLMConnectionError`
+- Updated factory with priority: Anthropic → Gemini → Ollama
+- Added `langchain-anthropic` dependency
+
+**Why:** Enables Claude as an LLM provider for agentic code generation (P22) and multi-provider routing (S5b.2). Claude excels at code generation tasks where Gemini is used for research Q&A.
+
+**Core features:** generate, generate_stream, health_check, get_langchain_model, close, usage extraction
+
+**Tests:** 41 tests (11 AnthropicProvider + 4 updated factory tests + 26 existing)
+
+**Files:** `src/services/llm/anthropic_provider.py`, `src/config.py`, `src/services/llm/factory.py`, `src/services/llm/__init__.py`, `tests/unit/test_llm_provider.py`
+
+---
+
+## S5b.2 — Multi-Provider LLM Routing
+
+**What:** `LLMRouter` class that routes LLM calls to optimal providers based on task type. Research Q&A goes to Gemini, code generation to Claude, local dev to Ollama. Supports configurable per-task routing tables, automatic fallback chains (primary fails -> try secondary), and per-provider cost tracking with token counters.
+
+**How:** `TaskType` enum defines 6 task categories (RESEARCH_QA, CODE_GENERATION, SUMMARIZATION, GRADING, QUERY_REWRITE, GENERAL). `LLMRoutingSettings` maps each task type to a provider name via env vars (`LLM_ROUTING__*`). `LLMRouter` wraps multiple `LLMProvider` instances and implements the same protocol, so callers just specify the task type. On failure, the fallback chain tries each provider in `fallback_order` until one succeeds. `ProviderUsageStats` tracks requests, tokens, and failures per provider.
+
+**Why:** Different LLM providers excel at different tasks — Gemini for research Q&A, Claude for code generation, Ollama for zero-cost local dev. Routing optimizes quality, cost, and latency per task. Fallback chains ensure resilience. This is the foundation for S5c.3 (multi-tier routing by complexity) and S10c.2 (A/B testing).
+
+**Core features:** TaskType enum, task-based routing, fallback chain, cost tracking (get_usage_stats/reset_usage_stats), health check aggregation, LangChain model routing, factory + DI integration
+
+**Tests:** 34 tests — routing logic (8), generate delegation (4), stream delegation (2), fallback chain (4), cost tracking (5), health check (2), langchain model (2), close (1), settings (2), stats (1), factory (1), enum (2)
+
+**Files:** `src/services/llm/router.py`, `src/config.py`, `src/services/llm/factory.py`, `src/dependency.py`, `tests/unit/test_llm_router.py`
+
+---
+
+## S13.2 — Design System Overhaul
+
+**What:** Complete overhaul of the default shadcn/ui design system with a premium indigo/violet aesthetic. Replaced the grayscale palette with rich indigo-600 primary and violet-500 accent colors (oklch), added glassmorphism card components, configured Inter + Plus Jakarta Sans typography, gradient accent utilities, a 6-tier elevation/shadow system, accessible focus rings, and 200ms transitions with prefers-reduced-motion support.
+
+**How:** Updated `globals.css` with new oklch-based color tokens for both light and dark modes. Created `GlassCard` component with `backdrop-filter: blur(24px)` and semi-transparent backgrounds. Configured Inter (body) and Plus Jakarta Sans (headings) via `next/font/google` with `font-display: swap`. Defined gradient CSS custom properties (`--gradient-primary`, `--gradient-accent`, `--gradient-surface`) and utility classes (`.bg-gradient-primary`, `.text-gradient`). Shadow scale (xs → 2xl) defined as CSS custom properties mapped to Tailwind via `@theme`. Interactive elements get `transition: all 200ms ease-in-out` with `prefers-reduced-motion: reduce` override. Added `--success` and `--warning` semantic tokens.
+
+**Why:** Establishes PaperAlchemy's visual identity across the entire frontend. All P13 specs (S13.1 landing page, S13.3 chat polish, S13.4 search polish, S13.5 sidebar, S13.6 micro-interactions, S13.7 mobile) consume these design tokens. Without a cohesive design system, each page would look inconsistent. The glassmorphism, gradients, and elevation system create a premium, modern aesthetic that differentiates PaperAlchemy from basic academic tools.
+
+**Core features:** Indigo/violet oklch palette (light + dark), glassmorphism GlassCard component (default + elevated), Inter + Plus Jakarta Sans fonts, gradient utilities (.bg-gradient-primary, .text-gradient), shadow elevation scale (xs → 2xl), success/warning semantic colors, 200ms interactive transitions, prefers-reduced-motion support, WCAG AA contrast-compliant
+
+**Tests:** 28 tests — color palette (5), glassmorphism (4), typography (4), gradients (4), elevation (3), focus rings & transitions (3), component regression (5)
+
+**Files:** `frontend/src/app/globals.css`, `frontend/src/app/layout.tsx`, `frontend/src/components/ui/glass-card.tsx`, `frontend/src/app/design-system.test.tsx`
+
+---
+
+## S13.1 — Premium Landing Page
+
+**What:** Built a premium, animated landing page for PaperAlchemy with five distinct sections: hero with animated mesh gradient, 6-card feature showcase grid, animated stats counter, use cases section, and a navigation footer. Replaces the previous minimal placeholder page.
+
+**How:** Created 5 modular React components in `frontend/src/components/landing/`: HeroSection (mesh gradient via CSS `@keyframes` animation, CTA buttons linking to /chat and /search), FeatureGrid (6 cards with Lucide icons and hover-lift `translateY` + shadow transitions), StatsCounter (client component using `IntersectionObserver` + `requestAnimationFrame` for count-up animation with ease-out cubic easing), UseCases (3 research-focused use case cards), and LandingFooter (Product/Resources/Connect link sections with branding). Composed in `page.tsx` as a Server Component importing client components where needed. Added `animate-mesh-gradient` keyframe animation to `globals.css`.
+
+**Why:** The landing page is the first impression for new users and establishes PaperAlchemy as a premium research tool. It showcases all key features (chat, search, upload, citations, comparison, dashboard) with clear CTAs driving users to the chat and search experiences. This spec is a prerequisite for the broader P13 UI Enhancement phase and provides the public-facing entry point.
+
+**Core features:** Animated mesh gradient hero with CTA buttons, 6-card feature grid with hover-lift effects, scroll-triggered animated number counters (IntersectionObserver), 3 research use case cards, responsive footer with navigation links, fully responsive layout (mobile/tablet/desktop via Tailwind responsive classes)
+
+**Tests:** 17 tests — HeroSection (3: headline, CTAs, gradient element), FeatureGrid (3: card count, content, heading), StatsCounter (2: stat items, number/label structure), UseCases (3: item count, content, heading), LandingFooter (3: branding, sections, links), Home page integration (3: hero, features, CTA links)
+
+**Files:** `frontend/src/app/page.tsx`, `frontend/src/app/page.test.tsx`, `frontend/src/components/landing/hero-section.tsx`, `frontend/src/components/landing/feature-grid.tsx`, `frontend/src/components/landing/stats-counter.tsx`, `frontend/src/components/landing/use-cases.tsx`, `frontend/src/components/landing/landing-footer.tsx`, `frontend/src/components/landing/landing.test.tsx`, `frontend/src/app/globals.css`
+
+---
+
+## S13.4 — Search & Discovery Polish
+
+**What:** Premium search & discovery UX upgrade — autocomplete/typeahead with recent searches stored in localStorage, rich paper cards with colored category chips and bookmark toggle, staggered fade-in animations, active filter pills with remove buttons, enhanced "no results" state with gradient illustration and search suggestions, and shimmer loading skeletons.
+
+**How:** Created `useRecentSearches` hook (`frontend/src/lib/hooks/use-recent-searches.ts`) using `useState` + `localStorage` with max 10 LIFO entries, deduplication, and graceful fallback for corrupted/unavailable storage. Created `FilterPills` component rendering active query/category/sort as removable pill badges (hides default "relevance" sort). Upgraded `PaperCard` with 10-color category chip mapping (`CATEGORY_COLORS` record mapping arXiv prefixes to Tailwind color classes), `Bookmark` icon toggle (visual only), full abstract reveal on hover via `onMouseEnter`/`onMouseLeave` state, and glassmorphism `glass-card` styling with `animationDelay` prop for staggered entry. Upgraded `SearchBar` with recent searches dropdown (on focus, filtered by input, max 5 shown, individual remove via Trash2 icon, "Clear all" button, click-outside dismiss). Upgraded `SearchResults` with shimmer skeletons (CSS `@keyframes shimmer` gradient sweep), `animate-fade-in-up` staggered animation (capped at 10 items × 50ms), and enhanced empty state with gradient orb illustration + 5 clickable search suggestions. Added `@keyframes shimmer` and `@keyframes fade-in-up` animations to `globals.css` with `prefers-reduced-motion` fallbacks. Wired `FilterPills` into search page with URL param removal handlers. Used `vi.stubGlobal("localStorage", ...)` mock pattern for Node 25 compatibility.
+
+**Why:** Transforms the basic S9.3 search interface into a polished, production-quality experience. Recent searches reduce friction for repeat queries. Colored category chips provide visual categorization at a glance. Staggered animations and shimmer loaders give a premium feel. Filter pills make active filters visible and easily removable. The enhanced empty state with suggestions helps users discover content. No downstream specs depend directly on S13.4 but it completes a key part of the P13 UI Enhancement phase.
+
+**Core features:** Recent searches hook (localStorage, max 10, LIFO, deduplication), search bar dropdown (on focus, filtered, individual remove, clear all), 10-color arXiv category chip mapping, bookmark icon toggle (visual), full abstract on hover, staggered fade-in-up animation (50ms × index, capped at 10), active filter pills (query/category/sort with × remove), enhanced empty state (gradient orb + 5 search suggestions), shimmer skeleton loading (CSS gradient sweep), prefers-reduced-motion fallbacks
+
+**Tests:** 75 tests across 8 files — use-recent-searches.test.ts (11: add, LIFO, dedup, max 10, remove, clear, persist, load, empty/whitespace, corrupted), search-bar.test.tsx (12: existing 7 + dropdown focus, no dropdown empty, select recent, save on submit, remove individual), paper-card.test.tsx (15: existing 10 + colored chips, bookmark render/toggle, hover abstract, animation delay), filter-pills.test.tsx (8: category/query/sort pills, remove callbacks, hide default sort, empty state), search-results.test.tsx (11: existing 6 + shimmer glass-card, query in empty state, suggestions render/click, long query truncation), plus unchanged pagination (10), category-filter (5), sort-select (3)
+
+**Files:** `frontend/src/lib/hooks/use-recent-searches.ts`, `frontend/src/lib/hooks/use-recent-searches.test.ts`, `frontend/src/components/search/filter-pills.tsx`, `frontend/src/components/search/filter-pills.test.tsx`, `frontend/src/components/search/paper-card.tsx`, `frontend/src/components/search/paper-card.test.tsx`, `frontend/src/components/search/search-bar.tsx`, `frontend/src/components/search/search-bar.test.tsx`, `frontend/src/components/search/search-results.tsx`, `frontend/src/components/search/search-results.test.tsx`, `frontend/src/components/search/index.ts`, `frontend/src/app/search/page.tsx`, `frontend/src/app/globals.css`
+
+---
+
+## S13.3 — Chat UX Polish
+
+**What was done:** Premium chat experience upgrade — replaced custom markdown parser with react-markdown (remark-gfm + rehype-highlight), added code block copy-to-clipboard, enhanced source citation cards with gradient badges and hover effects, added follow-up suggestion chips, upgraded typing indicator and scroll-to-bottom with framer-motion animations, and enhanced the welcome empty state with gradient illustration.
+
+**How it was done:** Replaced the hand-rolled `renderMarkdown()` in message-bubble.tsx with `react-markdown` + `remark-gfm` + `rehype-highlight`, using custom component overrides for headings, lists, tables, blockquotes, code blocks, and inline code. Created a new `CodeBlock` component with language label and clipboard copy button (Clipboard API with "Copied!" feedback). Enhanced `SourceCard` with gradient number badges, FileText icons, hover transitions, and group-hover effects. Created `FollowUpChips` component for clickable follow-up suggestions after assistant responses. Upgraded `TypingIndicator` and `ScrollToBottom` with framer-motion `motion.*` components and `AnimatePresence` for smooth entrance/exit animations. Enhanced `WelcomeState` with gradient icon container, blurred glow background, and "AI-Powered Research" badge. Added `suggested_followups` field to ChatMessage type. Wired FollowUpChips and AnimatePresence into the chat page.
+
+**Why it matters:** This transforms the chat from a basic text interface into a polished, production-quality experience. Markdown rendering is essential for research answers that include code, tables, and formatted text. Citation cards make sources more discoverable. Follow-up chips improve engagement and discoverability. Animations add perceived quality. These improvements are foundational for the premium UX that P13 aims to deliver.
+
+**Core features:** react-markdown rendering (headings, lists, bold, italic, links, tables, blockquotes, strikethrough via remark-gfm), rehype-highlight syntax highlighting for code blocks, CodeBlock component (language label + copy-to-clipboard with "Copied!" feedback), rich SourceCard (gradient number badge, FileText icon, group-hover effects, hover:shadow-sm), FollowUpChips (Sparkles icon, rounded-full chips, primary color scheme, click-to-send), framer-motion TypingIndicator (motion.div entrance/exit, motion.span animated dots with staggered delay), framer-motion ScrollToBottom (AnimatePresence, scale+opacity animation), gradient WelcomeState (blurred glow, gradient icon, "AI-Powered Research" badge), message timestamps with data-testid, ChatMessage.suggested_followups type field, inline citation badges preserved via processChildren()
+
+**Tests:** 60 tests across 9 files — message-bubble.test.tsx (13: user/assistant rendering, markdown renderer, source cards, citations, error/retry, timestamps, older timestamps), code-block.test.tsx (7: render content, language label, default "text", copy button, clipboard copy, "Copied!" feedback, language class), source-card.test.tsx (10: title, arxiv link, authors/year, truncated authors, number badge, testid, missing fields, no arxiv_id, hover classes, gradient badge), followup-chips.test.tsx (5: render chips, correct text, click callback, empty array, container testid), typing-indicator.test.tsx (3: render, three dots, framer-motion wrapper), welcome-state.test.tsx (6: title/description, suggested questions, click callback, try asking label, gradient icon, AI badge), scroll-to-bottom.test.tsx (3: visible render, hidden render, click), citation-badge.test.tsx (3), message-input.test.tsx (10)
+
+**Files:** `frontend/src/components/chat/message-bubble.tsx`, `frontend/src/components/chat/code-block.tsx` (new), `frontend/src/components/chat/followup-chips.tsx` (new), `frontend/src/components/chat/source-card.tsx`, `frontend/src/components/chat/typing-indicator.tsx`, `frontend/src/components/chat/welcome-state.tsx`, `frontend/src/components/chat/scroll-to-bottom.tsx`, `frontend/src/components/chat/index.ts`, `frontend/src/app/chat/page.tsx`, `frontend/src/types/chat.ts`, plus 9 test files
+
+---
+
+## S13.5 — Premium Navigation & Command Palette
+
+**What:** Upgraded the sidebar, header, and breadcrumbs into a premium navigation experience with gradient branding, active item indicators, keyboard shortcuts, a global command palette, breadcrumb dropdowns, and a notification bell.
+
+**How:** Enhanced existing layout components (Sidebar, SidebarNavItem, Breadcrumbs, Header, AppShell) and created new ones (CommandPalette, NotificationBell, useKeyboardShortcuts hook). Used Radix UI primitives from S9b.5: CommandDialog for Cmd+K palette, Tooltip for collapsed sidebar tooltips, DropdownMenu for breadcrumb sibling navigation and notification dropdown. TDD with 74 total layout tests.
+
+**Why:** Premium navigation polish is essential for a professional research assistant UX — keyboard shortcuts (Cmd+1-6) and command palette (Cmd+K) enable power-user workflows, gradient logo and accent indicators establish visual identity, and notification bell sets up infrastructure for future paper alerts.
+
+**Core features:** Gradient logo mark (bg-gradient-to-br from-primary via-primary/80 to-violet-600), active nav item left border accent (border-l-3 border-primary + bg-primary/10), collapsed sidebar tooltips with shortcut hints (Tooltip primitive), keyboard shortcut hints as kbd elements, Cmd/Ctrl+1-6 page navigation with input field bypass, Cmd/Ctrl+K command palette (CommandDialog with fuzzy search across Pages/Actions groups), breadcrumb dropdown with sibling route navigation (DropdownMenu), notification bell with badge count (0 hides, 99+ truncation), smooth sidebar collapse animation (duration-300 ease-in-out)
+
+**Tests:** 74 tests across 9 layout files — sidebar.test.tsx (9: nav items, branding, collapse toggle, localStorage persistence, gradient logo mark, transition classes), sidebar-nav-item.test.tsx (11: icon/label render, href, collapsed hide, active styling, nested routes, left border accent, inactive border transparent, shortcut hint display, collapsed hint hidden, tooltip wrapper), command-palette.test.tsx (9: closed render, dialog open, search input, Pages group, Actions group, fuzzy filter, empty state, navigation on select, close on Escape), breadcrumbs.test.tsx (10: root path, single/nested breadcrumbs, Home link, intermediate links, last segment text, aria-label, capitalize, dropdown trigger, sibling routes), notification-bell.test.tsx (6: bell button, badge count, zero hides badge, 99+ truncation, dropdown open, placeholder items), keyboard-shortcuts.test.tsx (11: Cmd+1-6 navigation, Ctrl key, input bypass, textarea bypass, Cmd+K callback, no modifier ignored), app-shell.test.tsx (6), header.test.tsx (6), mobile-nav.test.tsx (6)
+
+**Files:** `frontend/src/components/layout/sidebar.tsx` (enhanced), `frontend/src/components/layout/sidebar-nav-item.tsx` (enhanced), `frontend/src/components/layout/breadcrumbs.tsx` (enhanced), `frontend/src/components/layout/header.tsx` (enhanced), `frontend/src/components/layout/app-shell.tsx` (enhanced), `frontend/src/components/layout/nav-items.ts` (enhanced with shortcuts), `frontend/src/components/layout/command-palette.tsx` (new), `frontend/src/components/layout/notification-bell.tsx` (new), `frontend/src/components/layout/use-keyboard-shortcuts.ts` (new), `frontend/src/components/layout/index.ts` (updated exports), plus 9 test files
+
+---
+
+## S13.6 — Animations & Micro-Interactions
+
+**What:** 8 animation/micro-interaction components providing polish-level UX across the frontend — page transitions, skeleton loaders, button press feedback, hover card previews, toast notifications, progress indicators, scroll-triggered fade-in, and animated number counters.
+
+**How:** Built as a dedicated `frontend/src/components/animations/` module with barrel export. Uses framer-motion for page transitions (AnimatePresence + motion.div with fade/slide), CSS animations for shimmer and indeterminate progress, IntersectionObserver for scroll-triggered effects (ScrollFadeIn, AnimatedCounter), and sonner for toast notifications. All components respect `prefers-reduced-motion` via the existing globals.css media query. Added IntersectionObserver polyfill to test setup for jsdom compatibility.
+
+**Why:** Elevates PaperAlchemy from functional to premium — subtle animations create perceived responsiveness, skeleton loaders reduce perceived loading time, scroll-triggered reveals create engagement on the dashboard, and toast notifications provide clear feedback for user actions.
+
+**Core features:** PageTransition (framer-motion fade+slide, 0.25s ease-out), SkeletonCard/Text/Chart/List (animate-pulse + shimmer variants, configurable lines/count), PressableButton (scale-95 on press with 100ms transition, disabled bypass), HoverCardPreview (200ms hide delay, 150-char abstract truncation, animated popover), ToastProvider (sonner at bottom-right, max 3 visible, rich colors), ProgressIndicator (determinate with width%, indeterminate with gradient animation, error/success variants, optional label/percentage), ScrollFadeIn (IntersectionObserver with 0.1 threshold, configurable stagger delay, animate-once), AnimatedCounter (requestAnimationFrame + ease-out cubic, abbreviation for K/M, prefix/suffix support).
+
+**Tests:** 57 tests across 8 test files — page-transition.test.tsx (5: renders children, fade/slide props, exit props, transition duration, className), skeleton-shimmer.test.tsx (10: pulse class, rounded, className, multi-line, default 1 line, last line shorter, shimmer class, aspect-video, list count, default 3), pressable-button.test.tsx (8: renders, scale-95 mousedown, scale-1 mouseup, mouseleave reset, disabled bypass, onClick forward, transition style, className), hover-card-preview.test.tsx (6: trigger render, show on hover, authors display, abstract truncation, hide with delay, no abstract graceful), toast-provider.test.tsx (4: renders toaster, bottom-right position, max 3 visible, rich colors), progress-indicator.test.tsx (10: determinate, width%, indeterminate animate, 0% edge, 100% edge, error variant, success variant, label, percentage text, className), scroll-fade-in.test.tsx (7: renders children, initial opacity 0, visible on intersect, threshold config, unobserve after visible, stagger delay, className), animated-counter.test.tsx (7: initial 0, locale format, 0 no-animate, abbreviate K, abbreviate M, prefix/suffix, className)
+
+**Integration:** ToastProvider added to AppShell layout, ScrollFadeIn wraps dashboard sections with 100ms staggered delays, landing page StatsCounter refactored to use AnimatedCounter (replaced custom useCountUp hook), PageTransition wraps landing page content, IntersectionObserver polyfill added to global test setup.
+
+**Files:** `frontend/src/components/animations/page-transition.tsx`, `frontend/src/components/animations/skeleton-shimmer.tsx`, `frontend/src/components/animations/pressable-button.tsx`, `frontend/src/components/animations/hover-card-preview.tsx`, `frontend/src/components/animations/toast-provider.tsx`, `frontend/src/components/animations/progress-indicator.tsx`, `frontend/src/components/animations/scroll-fade-in.tsx`, `frontend/src/components/animations/animated-counter.tsx`, `frontend/src/components/animations/index.ts`, plus 8 test files. Modified: `frontend/src/app/globals.css` (progress-indeterminate keyframe), `frontend/src/components/layout/app-shell.tsx` (ToastProvider), `frontend/src/app/dashboard/page.tsx` (ScrollFadeIn), `frontend/src/components/landing/stats-counter.tsx` (AnimatedCounter), `frontend/src/app/page.tsx` (PageTransition), `frontend/src/test/setup.ts` (IntersectionObserver polyfill)
+
+---
+
+## S13.7 — Mobile-First Responsive Polish
+
+**Status:** Done  
+**Phase:** P13 (UI Enhancement)  
+**Date:** 2026-03-13
+
+### What
+Complete mobile-first responsive overhaul: bottom navigation bar, swipe gestures, pull-to-refresh, touch-optimized targets (44px min), adaptive layouts, mobile filter sheet, and fluid typography with CSS clamp().
+
+### How
+- **BottomNav** (`frontend/src/components/layout/bottom-nav.tsx`): Fixed bottom bar with 6 nav items (icons + labels), active route highlighting via `usePathname`, hidden on md+ screens via `md:hidden`, 44px min touch targets.
+- **useSwipe** hook (`frontend/src/lib/hooks/use-swipe.ts`): Touch event-based swipe detection with configurable threshold (default 50px), horizontal-only (ignores vertical scrolling), `onSwipeLeft`/`onSwipeRight`/`onSwiping` callbacks.
+- **PullToRefresh** (`frontend/src/components/layout/pull-to-refresh.tsx`): Pull-down gesture with dampened resistance, visual spinner indicator, only activates at scrollTop=0, mobile-only display.
+- **MobileFilterSheet** (`frontend/src/components/search/mobile-filter-sheet.tsx`): Bottom sheet (shadcn Sheet) with category + sort controls, active filter badge count, all options have 44px touch targets.
+- **Fluid Typography** (`globals.css`): All headings use `clamp()` for smooth scaling (e.g., h1: `clamp(1.5rem, 1rem + 2vw, 2.25rem)`), body text also fluid.
+- **Touch Target Utility** (`globals.css`): `.touch-target` class for 44px minimum hit targets.
+- **AppShell Integration**: BottomNav added to app-shell, main content gets `pb-20` on mobile to clear the bottom nav.
+- **Search Page**: Inline filters hidden on mobile (visible via MobileFilterSheet), results wrapped in PullToRefresh.
+
+### Why
+Mobile users need touch-friendly navigation and interactions. The existing sidebar-based mobile nav (drawer overlay) was functional but not optimized for one-handed use. Bottom navigation is the standard mobile pattern, and touch targets/gestures/fluid typography ensure a polished mobile experience.
+
+### Core Features
+- Bottom navigation bar (mobile only, replaces sidebar)
+- Swipe gesture hook (reusable, configurable threshold)
+- Pull-to-refresh on search results
+- 44px minimum touch targets on all interactive elements
+- Mobile filter bottom sheet with active filter badge
+- Fluid typography scaling via CSS clamp()
+- Adaptive layouts (single-column mobile → multi-column desktop)
+
+### Test Coverage
+- `bottom-nav.test.tsx` — 8 tests (rendering, active state, CSS classes, touch targets)
+- `use-swipe.test.ts` — 7 tests (left/right swipe, threshold, vertical ignore, swiping callback)
+- `pull-to-refresh.test.tsx` — 7 tests (pull indicator, refresh trigger, threshold, scroll position)
+- `mobile-filter-sheet.test.tsx` — 10 tests (trigger, sheet content, filter selection, badge count)
+- Updated `design-system.test.tsx` for clamp-based typography

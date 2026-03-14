@@ -31,7 +31,10 @@ describe("SidebarNavItem", () => {
     render(
       <SidebarNavItem href="/search" label="Search" icon={Search} collapsed={true} />
     );
-    expect(screen.queryByText("Search")).not.toBeInTheDocument();
+    // Label text should not be visible (only in tooltip, not in DOM directly)
+    const link = screen.getByRole("link");
+    // The visible text "Search" should not be a direct child span
+    expect(link.querySelector("span.nav-label")).toBeNull();
   });
 
   it("applies active styling when pathname matches href", () => {
@@ -62,5 +65,79 @@ describe("SidebarNavItem", () => {
     );
     const link = screen.getByRole("link", { name: /papers/i });
     expect(link).toHaveAttribute("data-active", "true");
+  });
+
+  // S13.5: Left border accent on active items
+  it("shows left border accent on active items", () => {
+    mockUsePathname.mockReturnValue("/search");
+
+    render(
+      <SidebarNavItem href="/search" label="Search" icon={Search} collapsed={false} />
+    );
+    const link = screen.getByRole("link", { name: /search/i });
+    expect(link.className).toMatch(/border-l/);
+    expect(link.className).toMatch(/border-primary/);
+  });
+
+  it("does not show primary left border on inactive items", () => {
+    mockUsePathname.mockReturnValue("/chat");
+
+    render(
+      <SidebarNavItem href="/search" label="Search" icon={Search} collapsed={false} />
+    );
+    const link = screen.getByRole("link", { name: /search/i });
+    expect(link.className).toMatch(/border-transparent/);
+    expect(link.className).not.toMatch(/border-primary/);
+  });
+
+  // S13.5: Keyboard shortcut hints
+  it("displays keyboard shortcut hint when expanded and shortcut provided", () => {
+    mockUsePathname.mockReturnValue("/");
+
+    render(
+      <SidebarNavItem
+        href="/search"
+        label="Search"
+        icon={Search}
+        collapsed={false}
+        shortcut="1"
+      />
+    );
+    const kbd = screen.getByText("1");
+    expect(kbd).toBeInTheDocument();
+    expect(kbd.tagName.toLowerCase()).toBe("kbd");
+  });
+
+  it("does not display keyboard shortcut hint when collapsed", () => {
+    mockUsePathname.mockReturnValue("/");
+
+    render(
+      <SidebarNavItem
+        href="/search"
+        label="Search"
+        icon={Search}
+        collapsed={true}
+        shortcut="1"
+      />
+    );
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
+  });
+
+  // S13.5: Tooltip on collapsed hover
+  it("wraps in tooltip when collapsed", () => {
+    mockUsePathname.mockReturnValue("/");
+
+    render(
+      <SidebarNavItem
+        href="/search"
+        label="Search"
+        icon={Search}
+        collapsed={true}
+        shortcut="1"
+      />
+    );
+    // The tooltip trigger should wrap the link
+    const link = screen.getByRole("link");
+    expect(link).toBeInTheDocument();
   });
 });

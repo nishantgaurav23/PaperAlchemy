@@ -10,15 +10,17 @@ from pydantic import BaseModel, Field
 
 
 class SourceReference(BaseModel):
-    """A single cited paper source."""
+    """A single cited source (paper, arXiv result, or web page)."""
 
     index: int
-    arxiv_id: str
+    arxiv_id: str = ""
     title: str
     authors: list[str] = Field(default_factory=list)
-    arxiv_url: str
+    arxiv_url: str = ""
+    url: str = ""  # generic URL (for web sources)
     chunk_text: str = ""
     score: float = 0.0
+    source_type: str = "knowledge_base"  # "knowledge_base" | "arxiv" | "web"
 
 
 class RetrievalMetadata(BaseModel):

@@ -12,7 +12,7 @@ export interface UploadedPaper {
 export interface PaperSummary {
   objective: string;
   method: string;
-  key_findings: string;
+  key_findings: string | string[];
   contribution: string;
   limitations: string;
 }

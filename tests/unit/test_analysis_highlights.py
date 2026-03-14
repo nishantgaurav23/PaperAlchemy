@@ -297,12 +297,15 @@ class TestHighlightsEndpoint:
     async def test_highlights_endpoint_success(self, mock_paper_repo, mock_llm_provider):
         """POST returns 200 with valid highlights."""
         from httpx import ASGITransport, AsyncClient
+        from src.db import get_db_session
         from src.dependency import get_llm_provider, get_paper_repository
         from src.main import create_app
 
+        mock_session = AsyncMock()
         app = create_app()
         app.dependency_overrides[get_paper_repository] = lambda: mock_paper_repo
         app.dependency_overrides[get_llm_provider] = lambda: mock_llm_provider
+        app.dependency_overrides[get_db_session] = lambda: mock_session
 
         try:
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -321,13 +324,16 @@ class TestHighlightsEndpoint:
     async def test_highlights_endpoint_not_found(self, mock_paper_repo, mock_llm_provider):
         """POST returns 404 for non-existent paper."""
         from httpx import ASGITransport, AsyncClient
+        from src.db import get_db_session
         from src.dependency import get_llm_provider, get_paper_repository
         from src.main import create_app
 
+        mock_session = AsyncMock()
         app = create_app()
         mock_paper_repo.get_by_id = AsyncMock(return_value=None)
         app.dependency_overrides[get_paper_repository] = lambda: mock_paper_repo
         app.dependency_overrides[get_llm_provider] = lambda: mock_llm_provider
+        app.dependency_overrides[get_db_session] = lambda: mock_session
 
         try:
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

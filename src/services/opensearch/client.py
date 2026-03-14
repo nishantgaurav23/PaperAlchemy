@@ -2,10 +2,15 @@
 
 Wraps opensearch-py with PaperAlchemy-specific logic: index management,
 query building, result formatting, and chunk lifecycle.
+
+All search methods have async variants (prefixed with ``a``) that run the
+synchronous opensearch-py calls in a thread pool via ``asyncio.to_thread``
+so they never block the FastAPI event loop.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -79,14 +84,14 @@ class OpenSearchClient:
 
             if force:
                 try:
-                    self.client.ingest.get_pipeline(id=pipeline_id)
-                    self.client.ingest.delete_pipeline(id=pipeline_id)
+                    self.client.transport.perform_request("GET", f"/_search/pipeline/{pipeline_id}")
+                    self.client.transport.perform_request("DELETE", f"/_search/pipeline/{pipeline_id}")
                     logger.info("Deleted existing RRF pipeline: %s", pipeline_id)
                 except Exception:
                     pass
 
             try:
-                self.client.ingest.get_pipeline(id=pipeline_id)
+                self.client.transport.perform_request("GET", f"/_search/pipeline/{pipeline_id}")
                 logger.info("RRF pipeline already exists: %s", pipeline_id)
                 return False
             except Exception:
@@ -169,7 +174,7 @@ class OpenSearchClient:
                     query=query, size=size, from_=from_, categories=categories, latest=latest, min_score=min_score
                 )
             return self._search_hybrid_native(
-                query=query, query_embedding=query_embedding, size=size, categories=categories, min_score=min_score
+                query=query, query_embedding=query_embedding, size=size, from_=from_, categories=categories, min_score=min_score
             )
         except Exception as e:
             logger.error("Unified search error: %s", e)
@@ -180,12 +185,13 @@ class OpenSearchClient:
         query: str,
         query_embedding: list[float],
         size: int = 10,
+        from_: int = 0,
         categories: list[str] | None = None,
         min_score: float = 0.0,
     ) -> dict[str, Any]:
         """Hybrid search combining BM25 and vector via native RRF."""
         return self._search_hybrid_native(
-            query=query, query_embedding=query_embedding, size=size, categories=categories, min_score=min_score
+            query=query, query_embedding=query_embedding, size=size, from_=from_, categories=categories, min_score=min_score
         )
 
     # ── Private Search Implementations ──────────────────────────────
@@ -217,12 +223,13 @@ class OpenSearchClient:
         query: str,
         query_embedding: list[float],
         size: int,
+        from_: int = 0,
         categories: list[str] | None = None,
         min_score: float = 0.0,
     ) -> dict[str, Any]:
         """Native OpenSearch hybrid search with RRF pipeline."""
         builder = QueryBuilder(
-            query=query, size=size * 2, from_=0, categories=categories, latest_papers=False, search_chunks=True
+            query=query, size=size * 2, from_=from_, categories=categories, latest_papers=False, search_chunks=True
         )
         bm25_search_body = builder.build()
         bm25_query = bm25_search_body["query"]
@@ -238,6 +245,7 @@ class OpenSearchClient:
 
         search_body = {
             "size": size,
+            "from": from_,
             "query": hybrid_query,
             "_source": bm25_search_body["_source"],
             "highlight": bm25_search_body["highlight"],
@@ -247,20 +255,37 @@ class OpenSearchClient:
             index=self.index_name, body=search_body, params={"search_pipeline": HYBRID_RRF_PIPELINE["id"]}
         )
         result = self._format_results(response, min_score=min_score)
-        result["total"] = len(result["hits"])
+        # Keep result["total"] from _format_results (the true OpenSearch total).
+        # Store the filtered count separately for the caller.
+        result["filtered_count"] = len(result["hits"])
         return result
 
     # ── Result Formatting ───────────────────────────────────────────
 
     @staticmethod
-    def _format_results(response: dict[str, Any], min_score: float = 0.0) -> dict[str, Any]:
-        """Format OpenSearch response into a standardized result dict."""
+    def _format_results(response: dict[str, Any], min_score: float = 0.0, relevance_threshold: float = 0.2) -> dict[str, Any]:
+        """Format OpenSearch response into a standardized result dict.
+
+        Applies two filters:
+        1. Absolute min_score — drops hits below a hard floor.
+        2. Relative relevance_threshold — drops hits scoring below this fraction
+           of the top result's score (e.g. 0.2 = keep only results within 20% of best).
+        """
         results: dict[str, Any] = {"total": response["hits"]["total"]["value"], "hits": []}
-        for hit in response["hits"]["hits"]:
-            if hit["_score"] < min_score:
+
+        raw_hits = response["hits"]["hits"]
+        if not raw_hits:
+            return results
+
+        top_score = raw_hits[0].get("_score") or 0.0
+        score_floor = max(min_score, top_score * relevance_threshold)
+
+        for hit in raw_hits:
+            score = hit.get("_score") or 0.0
+            if score < score_floor:
                 continue
             chunk = hit["_source"]
-            chunk["score"] = hit["_score"]
+            chunk["score"] = score
             chunk["chunk_id"] = hit["_id"]
             if "highlight" in hit:
                 chunk["highlights"] = hit["highlight"]
@@ -342,3 +367,81 @@ class OpenSearchClient:
         except Exception as e:
             logger.error("Error getting index stats: %s", e)
             return {"index_name": self.index_name, "exists": False, "document_count": 0, "error": str(e)}
+
+    # ── Async wrappers (non-blocking) ──────────────────────────────
+
+    async def asearch_chunks_hybrid(
+        self,
+        query: str,
+        query_embedding: list[float],
+        size: int = 10,
+        from_: int = 0,
+        categories: list[str] | None = None,
+        min_score: float = 0.0,
+    ) -> dict[str, Any]:
+        """Async wrapper — runs hybrid search in a thread pool."""
+        return await asyncio.to_thread(
+            self.search_chunks_hybrid,
+            query=query,
+            query_embedding=query_embedding,
+            size=size,
+            from_=from_,
+            categories=categories,
+            min_score=min_score,
+        )
+
+    async def asearch_chunks_vectors(
+        self,
+        query_embedding: list[float],
+        size: int = 10,
+        categories: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Async wrapper — runs vector search in a thread pool."""
+        return await asyncio.to_thread(
+            self.search_chunks_vectors,
+            query_embedding=query_embedding,
+            size=size,
+            categories=categories,
+        )
+
+    async def asearch_papers(
+        self,
+        query: str,
+        size: int = 10,
+        from_: int = 0,
+        categories: list[str] | None = None,
+        latest: bool = True,
+    ) -> dict[str, Any]:
+        """Async wrapper — runs BM25 search in a thread pool."""
+        return await asyncio.to_thread(
+            self.search_papers,
+            query=query,
+            size=size,
+            from_=from_,
+            categories=categories,
+            latest=latest,
+        )
+
+    async def asearch_unified(
+        self,
+        query: str,
+        query_embedding: list[float] | None = None,
+        size: int = 10,
+        from_: int = 0,
+        categories: list[str] | None = None,
+        latest: bool = False,
+        use_hybrid: bool = True,
+        min_score: float = 0.0,
+    ) -> dict[str, Any]:
+        """Async wrapper — runs unified search in a thread pool."""
+        return await asyncio.to_thread(
+            self.search_unified,
+            query=query,
+            query_embedding=query_embedding,
+            size=size,
+            from_=from_,
+            categories=categories,
+            latest=latest,
+            use_hybrid=use_hybrid,
+            min_score=min_score,
+        )

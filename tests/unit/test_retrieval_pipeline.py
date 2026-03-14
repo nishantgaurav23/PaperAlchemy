@@ -101,29 +101,29 @@ def mock_parent_child():
 @pytest.fixture
 def mock_opensearch():
     client = MagicMock()
-    client.search_chunks_hybrid = MagicMock(
-        return_value={
-            "total": 2,
-            "hits": [
-                {
-                    "chunk_id": "chunk_fallback_1",
-                    "score": 0.6,
-                    "chunk_text": "Fallback text 1",
-                    "arxiv_id": "2301.00001",
-                    "title": "Fallback Paper",
-                    "authors": ["Author A"],
-                },
-                {
-                    "chunk_id": "chunk_fallback_2",
-                    "score": 0.5,
-                    "chunk_text": "Fallback text 2",
-                    "arxiv_id": "2301.00002",
-                    "title": "Fallback Paper 2",
-                    "authors": ["Author B"],
-                },
-            ],
-        }
-    )
+    _hybrid_return = {
+        "total": 2,
+        "hits": [
+            {
+                "chunk_id": "chunk_fallback_1",
+                "score": 0.6,
+                "chunk_text": "Fallback text 1",
+                "arxiv_id": "2301.00001",
+                "title": "Fallback Paper",
+                "authors": ["Author A"],
+            },
+            {
+                "chunk_id": "chunk_fallback_2",
+                "score": 0.5,
+                "chunk_text": "Fallback text 2",
+                "arxiv_id": "2301.00002",
+                "title": "Fallback Paper 2",
+                "authors": ["Author B"],
+            },
+        ],
+    }
+    client.search_chunks_hybrid = MagicMock(return_value=_hybrid_return)
+    client.asearch_chunks_hybrid = AsyncMock(return_value=_hybrid_return)
     return client
 
 

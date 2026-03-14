@@ -15,7 +15,7 @@ The existing Week 1-7 code (13,000+ lines) serves as **reference only** — we D
 - 100% test coverage from day one
 - Clean architecture incorporating advanced RAG from the start
 - Citation-first design baked in (not bolted on)
-- Gemini 3 Flash integration designed in (not patched)
+- Gemini integration designed in (not patched)
 
 ### Reference Code (in `_reference/`, gitignored)
 Old Week 1-7 code moved to `_reference/` — study patterns, don't copy blindly:
@@ -45,7 +45,7 @@ pending → spec-written → done
 - **Every backend spec** gets a notebook: `notebooks/specs/S{x}.{y}_{slug}.ipynb`
 - **Every backend spec** gets pytest tests: `tests/unit/test_{module}.py`
 - **Every frontend spec** gets Vitest tests: `*.test.tsx` co-located
-- **Every spec** must be testable via UI (Gradio initially, Next.js later)
+- **Every spec** must be testable via UI (Next.js frontend)
 
 ---
 
@@ -60,16 +60,18 @@ pending → spec-written → done
 | **Search Engine** | OpenSearch 2.19 | BM25 + KNN hybrid search |
 | **Vector Embeddings** | Jina AI v3 (1024-dim) | Free API, high quality |
 | **Re-ranking** | Cross-encoder (ms-marco-MiniLM-L-12-v2) | Second-stage relevance scoring after retrieval |
-| **LLM (Local)** | Ollama (llama3.2, mistral) | Free local inference for dev |
-| **LLM (Cloud)** | Google Gemini 3 Flash | Best research perf/cost, generous free tier |
+| **LLM (Local)** | Ollama (llama3.2:1b) | Free local inference for dev |
+| **LLM (Cloud)** | Google Gemini (gemini-2.5-flash) | Research Q&A, summarization |
+| **LLM (Code)** | Anthropic Claude (claude-sonnet-4) | Code generation, multi-provider routing |
 | **Agent Framework** | LangGraph 0.2+ | State-machine agents, decision graphs |
 | **LLM Framework** | LangChain 0.3+ | Chains, tools, prompt templates |
-| **PDF Parsing** | Docling 2.43+ | Section-aware scientific PDF parsing |
+| **Web Search** | DuckDuckGo (ddgs) | Fallback when KB results insufficient |
+| **PDF Parsing** | Docling 2.43+ / PyMuPDF | Section-aware scientific PDF parsing |
 | **Caching** | Redis 7 | Sub-ms response caching, LRU eviction |
 | **Observability** | Langfuse v3 | Per-node LLM tracing, cost tracking |
 | **Workflow** | Apache Airflow 2.10 | Scheduled data ingestion DAGs |
-| **Frontend** | Next.js 15 + TypeScript + Tailwind + shadcn/ui | SSR, streaming, modern DX |
-| **Fallback UI** | Gradio 4.0+ | Quick dev/testing UI (built per-spec) |
+| **Frontend** | Next.js 16 + React 19 + TypeScript + Tailwind v4 + shadcn/ui | App Router, SSR, streaming |
+| **Object Storage** | MinIO | Audio files, code artifacts (dev) |
 | **Testing** | pytest + pytest-asyncio + Vitest | Backend + frontend testing |
 | **Linting** | Ruff (Python, line-length: 130), ESLint + Prettier (TS) | Fast, consistent |
 | **Containerization** | Docker + Compose | Reproducible multi-service dev |
@@ -89,7 +91,7 @@ pending → spec-written → done
 | Cloud Storage | $0 | 5GB free for PDFs |
 | Secret Manager | $0 | 6 active versions free |
 | Artifact Registry | $0 | 500MB free |
-| Gemini 3 Flash API | $0 | Free tier: 15 RPM |
+| Gemini API | $0 | Free tier: 15 RPM |
 | Jina Embeddings API | $0 | Free tier: 1M tokens/month |
 | **Total** | **$0-7/mo** | |
 
@@ -188,7 +190,7 @@ pending → spec-written → done
 
 | Spec | Spec Location | Depends On | Location | Feature | Notes | Status |
 |------|--------------|------------|----------|---------|-------|--------|
-| S5.1 | specs/spec-S5.1-llm-client/ | S1.2 | src/services/llm/ | Unified LLM client (Ollama + Gemini 3 Flash) | Provider abstraction: LLMProvider interface, OllamaProvider, GeminiProvider, model switching | done |
+| S5.1 | specs/spec-S5.1-llm-client/ | S1.2 | src/services/llm/ | Unified LLM client (Ollama + Gemini) | Provider abstraction: LLMProvider interface, OllamaProvider, GeminiProvider, model switching | done |
 | S5.2 | specs/spec-S5.2-rag-chain/ | S5.1, S4b.5 | src/services/rag/ | RAG pipeline: retrieve → prompt → generate | Uses advanced retrieval pipeline; citation-enforcing prompts | done |
 | S5.3 | specs/spec-S5.3-streaming-responses/ | S5.2 | src/routers/ask.py | SSE streaming endpoint | Token-by-token streaming, source metadata at end | done |
 | S5.4 | specs/spec-S5.4-response-caching/ | S5.2 | src/services/cache/ | Redis response caching | SHA256 keys, 24h TTL, cache invalidation, graceful fallback | done |
@@ -229,7 +231,7 @@ pending → spec-written → done
 
 | Spec | Spec Location | Depends On | Location | Feature | Notes | Status |
 |------|--------------|------------|----------|---------|-------|--------|
-| S9.1 | specs/spec-S9.1-nextjs-setup/ | — | frontend/ | Next.js 15 + TS + Tailwind + shadcn/ui | App Router, pnpm, ESLint, Vitest, dark mode | done |
+| S9.1 | specs/spec-S9.1-nextjs-setup/ | — | frontend/ | Next.js 16 + React 19 + TS + Tailwind v4 + shadcn/ui | App Router, pnpm, ESLint, Vitest, dark mode | done |
 | S9.2 | specs/spec-S9.2-layout-navigation/ | S9.1 | frontend/src/app/ | App shell: sidebar, header, theme toggle | Responsive, collapsible sidebar, breadcrumbs | done |
 | S9.3 | specs/spec-S9.3-search-interface/ | S9.2 | frontend/src/app/search/ | Search page with filters & results | Category filter, sort, pagination, paper cards with arXiv links | done |
 | S9.4 | specs/spec-S9.4-chat-interface/ | S9.2 | frontend/src/app/chat/ | RAG chatbot with streaming | SSE consumption, follow-up Q&A, message history, citation rendering with clickable arXiv links | done |
@@ -245,13 +247,13 @@ pending → spec-written → done
 
 | Spec | Spec Location | Depends On | Location | Feature | Notes | Status |
 |------|--------------|------------|----------|---------|-------|--------|
-| S9b.1 | specs/spec-S9b.1-alembic-migrations/ | S2.2 | alembic/, src/db/ | Alembic migration setup | Initialize Alembic, auto-generate initial migration from Paper model, configure async driver, add `make db-migrate`, `make db-upgrade`, `make db-downgrade` commands; required for all future models (User, Comment, Vote, Note, Avatar, etc.) | pending |
-| S9b.2 | specs/spec-S9b.2-platform-dependencies/ | S1.1 | pyproject.toml, .env.example | Platform dependency declaration | Add: anthropic SDK (for P22 code gen), python-jose[cryptography] + passlib[bcrypt] (for P14 auth), websockets (for P14 real-time comments), edge-tts or google-cloud-texttospeech (for P23 audio), python-pptx (for P19 slides); update .env.example with ANTHROPIC__API_KEY, AUTH__SECRET_KEY, AUTH__ALGORITHM, TTS__PROVIDER, TTS__API_KEY | pending |
-| S9b.3 | specs/spec-S9b.3-frontend-infra-deps/ | S9.1 | frontend/package.json | Frontend infrastructure dependencies | Add: react-markdown + remark-gfm + rehype-highlight (P13 chat markdown), framer-motion (P13 animations), zustand (global state for auth/notifications), react-hot-toast or sonner (toast notifications), cmdk (P13 command palette), react-hook-form + zod (form validation for P14 auth forms); add to Vitest mocks | pending |
-| S9b.4 | specs/spec-S9b.4-frontend-auth-infra/ | S9b.3 | frontend/src/lib/auth/, frontend/src/components/auth/ | Frontend auth infrastructure | Auth context provider (useAuth hook), token storage (httpOnly cookie or sessionStorage), API client interceptor (auto-attach Bearer token, refresh on 401), ProtectedRoute wrapper component, login/signup/forgot-password page shells (/login, /signup), auth types (User, AuthState, LoginRequest, SignupRequest) | pending |
-| S9b.5 | specs/spec-S9b.5-frontend-ui-primitives/ | S9b.3 | frontend/src/components/ui/ | Missing UI primitives | Add shadcn/ui components needed by P13-P23: Dialog/Modal, Dropdown Menu, Popover, Tabs, Textarea, Checkbox, Tooltip, Avatar, Toast container, Command (for Cmd+K palette), Sheet (mobile drawers); ensure all have Vitest tests | pending |
-| S9b.6 | specs/spec-S9b.6-collections-backend/ | S2.4, S3.1 | src/models/collection.py, src/repositories/collection.py, src/routers/collections.py | Collections backend API | Migrate collections from frontend localStorage to backend: Collection model (id, name, description, user_id nullable for now, papers M2M, created_at), CollectionRepository (CRUD, add/remove paper), REST API (GET/POST/PUT/DELETE /api/v1/collections), update frontend to call API instead of localStorage; required for P15, P17 shared collections | pending |
-| S9b.7 | specs/spec-S9b.7-docker-platform-services/ | S1.3 | compose.yml | Docker services for platform features | Add services: E2B or sandboxed Docker-in-Docker (for P22 code sandbox), MinIO/S3 (for P23 audio file storage, P22 code artifacts); add ANTHROPIC__API_KEY to API service env; add new env vars for TTS, auth secret | pending |
+| S9b.1 | specs/spec-S9b.1-alembic-migrations/ | S2.2 | alembic/, src/db/ | Alembic migration setup | Initialize Alembic, auto-generate initial migration from Paper model, configure async driver, add `make db-migrate`, `make db-upgrade`, `make db-downgrade` commands; required for all future models (User, Comment, Vote, Note, Avatar, etc.) | done |
+| S9b.2 | specs/spec-S9b.2-platform-dependencies/ | S1.1 | pyproject.toml, .env.example | Platform dependency declaration | Add: anthropic SDK (for P22 code gen), python-jose[cryptography] + passlib[bcrypt] (for P14 auth), websockets (for P14 real-time comments), edge-tts or google-cloud-texttospeech (for P23 audio), python-pptx (for P19 slides); update .env.example with ANTHROPIC__API_KEY, AUTH__SECRET_KEY, AUTH__ALGORITHM, TTS__PROVIDER, TTS__API_KEY | done |
+| S9b.3 | specs/spec-S9b.3-frontend-infra-deps/ | S9.1 | frontend/package.json | Frontend infrastructure dependencies | Add: react-markdown + remark-gfm + rehype-highlight (P13 chat markdown), framer-motion (P13 animations), zustand (global state for auth/notifications), react-hot-toast or sonner (toast notifications), cmdk (P13 command palette), react-hook-form + zod (form validation for P14 auth forms); add to Vitest mocks | done |
+| S9b.4 | specs/spec-S9b.4-frontend-auth-infra/ | S9b.3 | frontend/src/lib/auth/, frontend/src/components/auth/ | Frontend auth infrastructure | Auth context provider (useAuth hook), token storage (httpOnly cookie or sessionStorage), API client interceptor (auto-attach Bearer token, refresh on 401), ProtectedRoute wrapper component, login/signup/forgot-password page shells (/login, /signup), auth types (User, AuthState, LoginRequest, SignupRequest) | done |
+| S9b.5 | specs/spec-S9b.5-frontend-ui-primitives/ | S9b.3 | frontend/src/components/ui/ | Missing UI primitives | Add shadcn/ui components needed by P13-P23: Dialog/Modal, Dropdown Menu, Popover, Tabs, Textarea, Checkbox, Tooltip, Avatar, Toast container, Command (for Cmd+K palette), Sheet (mobile drawers); ensure all have Vitest tests | done |
+| S9b.6 | specs/spec-S9b.6-collections-backend/ | S2.4, S3.1 | src/models/collection.py, src/repositories/collection.py, src/routers/collections.py | Collections backend API | Migrate collections from frontend localStorage to backend: Collection model (id, name, description, user_id nullable for now, papers M2M, created_at), CollectionRepository (CRUD, add/remove paper), REST API (GET/POST/PUT/DELETE /api/v1/collections), update frontend to call API instead of localStorage; required for P15, P17 shared collections | done |
+| S9b.7 | specs/spec-S9b.7-docker-platform-services/ | S1.3 | compose.yml | Docker services for platform features | Add services: E2B or sandboxed Docker-in-Docker (for P22 code sandbox), MinIO/S3 (for P23 audio file storage, P22 code artifacts); add ANTHROPIC__API_KEY to API service env; add new env vars for TTS, auth secret | done |
 
 ## Phase 5b: Extended LLM Providers — AFTER P9b
 
@@ -259,15 +261,15 @@ pending → spec-written → done
 
 | Spec | Spec Location | Depends On | Location | Feature | Notes | Status |
 |------|--------------|------------|----------|---------|-------|--------|
-| S5b.1 | specs/spec-S5b.1-anthropic-provider/ | S5.1, S9b.2 | src/services/llm/anthropic_provider.py | Anthropic Claude LLM provider | Add AnthropicProvider implementing LLMProvider protocol; supports Claude Opus/Sonnet/Haiku; streaming + non-streaming; tool use support for agentic code gen; config via ANTHROPIC__API_KEY, ANTHROPIC__MODEL; register in factory | pending |
-| S5b.2 | specs/spec-S5b.2-multi-provider-routing/ | S5b.1 | src/services/llm/router.py | Multi-provider LLM routing | Route different tasks to optimal provider: research Q&A → Gemini, code generation → Claude, local dev → Ollama; configurable per-task routing table; fallback chain (primary fails → try secondary); cost tracking per provider | pending |
+| S5b.1 | specs/spec-S5b.1-anthropic-provider/ | S5.1, S9b.2 | src/services/llm/anthropic_provider.py | Anthropic Claude LLM provider | Add AnthropicProvider implementing LLMProvider protocol; supports Claude Opus/Sonnet/Haiku; streaming + non-streaming; tool use support for agentic code gen; config via ANTHROPIC__API_KEY, ANTHROPIC__MODEL; register in factory | done |
+| S5b.2 | specs/spec-S5b.2-multi-provider-routing/ | S5b.1 | src/services/llm/router.py | Multi-provider LLM routing | Route different tasks to optimal provider: research Q&A → Gemini, code generation → Claude, local dev → Ollama; configurable per-task routing table; fallback chain (primary fails → try secondary); cost tracking per provider | done |
 
 ## Phase 10: Evaluation Framework — PARALLEL from P6+
 
 | Spec | Spec Location | Depends On | Location | Feature | Notes | Status |
 |------|--------------|------------|----------|---------|-------|--------|
 | S10.1 | specs/spec-S10.1-eval-dataset/ | S5.2 | evals/datasets/ | Curated Q&A evaluation dataset | 100+ Q&A triples from indexed papers + SciQ + QASPER subsets | pending |
-| S10.2 | specs/spec-S10.2-llm-judge/ | S10.1, S5.1 | evals/judges/llm_judge.py | LLM-as-judge evaluator | Faithfulness, relevance, coherence, citation accuracy scoring via Gemini 3 Flash | pending |
+| S10.2 | specs/spec-S10.2-llm-judge/ | S10.1, S5.1 | evals/judges/llm_judge.py | LLM-as-judge evaluator | Faithfulness, relevance, coherence, citation accuracy scoring via Gemini | pending |
 | S10.3 | specs/spec-S10.3-human-eval-ui/ | S10.1, S9.1 | frontend/src/app/eval/ | Human evaluation interface | Side-by-side comparison, Likert scales (1-5), inter-annotator agreement | pending |
 | S10.4 | specs/spec-S10.4-quality-metrics/ | S10.2 | evals/metrics/ | RAGAS metrics + custom metrics | Answer correctness, context precision/recall, hallucination rate, citation accuracy | pending |
 | S10.5 | specs/spec-S10.5-benchmark-dashboard/ | S10.4, S9.1 | frontend/src/app/benchmarks/ | Evaluation results dashboard | Model comparison, metric trends over time, regression alerts | pending |
@@ -383,13 +385,13 @@ pending → spec-written → done
 
 | Spec | Spec Location | Depends On | Location | Feature | Notes | Status |
 |------|--------------|------------|----------|---------|-------|--------|
-| S13.1 | specs/spec-S13.1-landing-page/ | S9.2 | frontend/src/app/page.tsx | Premium landing page | Animated hero with mesh gradient background, feature showcase grid (6 cards with icons + hover lift), live stats counter (papers indexed, queries answered), prominent CTA buttons, testimonial/use-case section, footer with links | pending |
-| S13.2 | specs/spec-S13.2-design-system/ | S9.1 | frontend/src/components/ui/, globals.css | Design system overhaul | Refined color palette (rich indigo/violet primary), glassmorphism cards (backdrop-blur + border opacity), 8px spacing grid, typography scale (Inter/Plus Jakarta Sans), gradient accents on primary surfaces, elevation system (shadow-sm → shadow-2xl), focus rings, smooth 200ms transitions on all interactive elements | pending |
-| S13.3 | specs/spec-S13.3-chat-ux-polish/ | S9.4, S9b.3 | frontend/src/components/chat/ | Premium chat experience | Markdown rendering (react-markdown + syntax highlighting via shiki), copy-to-clipboard on code blocks, rich citation cards (thumbnail, title, authors, journal, year), suggested follow-up chips after each response, animated typing indicator, message timestamps, smooth scroll animations, empty state with gradient illustration | pending |
-| S13.4 | specs/spec-S13.4-search-discovery/ | S9.3 | frontend/src/components/search/ | Search & discovery polish | Autocomplete/typeahead with recent searches, rich paper cards (abstract preview on hover, citation count badge, category color chips, bookmark icon), staggered fade-in animations, active filter pills with remove button, "no results" illustration + suggestions, skeleton shimmer loading states | pending |
-| S13.5 | specs/spec-S13.5-sidebar-navigation/ | S9.2, S9b.5 | frontend/src/components/layout/ | Premium navigation & layout | Sidebar with gradient logo mark, active item accent indicator (left border + subtle bg), smooth collapse animation with icon tooltips, keyboard shortcut hints, global command palette (Cmd+K) with fuzzy search across papers/collections/actions, breadcrumb trail with dropdown, notification bell with badge count | pending |
-| S13.6 | specs/spec-S13.6-micro-interactions/ | S9.1, S9b.3 | frontend/src/ | Animations & micro-interactions | Page transition animations (framer-motion), skeleton shimmer loaders on all data pages, button press feedback (scale-95), hover card previews for paper links, toast notifications with slide-in animation, progress indicators for long operations, scroll-triggered fade-in for dashboard cards, smooth number counting animations for stats | pending |
-| S13.7 | specs/spec-S13.7-responsive-mobile/ | S9.2 | frontend/src/ | Mobile-first responsive polish | Bottom navigation bar on mobile (replacing sidebar), swipe gestures for chat, pull-to-refresh on search, touch-optimized hit targets (min 44px), adaptive layouts (single → multi-column), sheet/drawer pattern for mobile filters, responsive typography (clamp-based fluid sizing) | pending |
+| S13.1 | specs/spec-S13.1-landing-page/ | S9.2 | frontend/src/app/page.tsx | Premium landing page | Animated hero with mesh gradient background, feature showcase grid (6 cards with icons + hover lift), live stats counter (papers indexed, queries answered), prominent CTA buttons, testimonial/use-case section, footer with links | done |
+| S13.2 | specs/spec-S13.2-design-system/ | S9.1 | frontend/src/components/ui/, globals.css | Design system overhaul | Refined color palette (rich indigo/violet primary), glassmorphism cards (backdrop-blur + border opacity), 8px spacing grid, typography scale (Inter/Plus Jakarta Sans), gradient accents on primary surfaces, elevation system (shadow-sm → shadow-2xl), focus rings, smooth 200ms transitions on all interactive elements | done |
+| S13.3 | specs/spec-S13.3-chat-ux-polish/ | S9.4, S9b.3 | frontend/src/components/chat/ | Premium chat experience | Markdown rendering (react-markdown + syntax highlighting via shiki), copy-to-clipboard on code blocks, rich citation cards (thumbnail, title, authors, journal, year), suggested follow-up chips after each response, animated typing indicator, message timestamps, smooth scroll animations, empty state with gradient illustration | done |
+| S13.4 | specs/spec-S13.4-search-discovery/ | S9.3 | frontend/src/components/search/ | Search & discovery polish | Autocomplete/typeahead with recent searches, rich paper cards (abstract preview on hover, citation count badge, category color chips, bookmark icon), staggered fade-in animations, active filter pills with remove button, "no results" illustration + suggestions, skeleton shimmer loading states | done |
+| S13.5 | specs/spec-S13.5-sidebar-navigation/ | S9.2, S9b.5 | frontend/src/components/layout/ | Premium navigation & layout | Sidebar with gradient logo mark, active item accent indicator (left border + subtle bg), smooth collapse animation with icon tooltips, keyboard shortcut hints, global command palette (Cmd+K) with fuzzy search across papers/collections/actions, breadcrumb trail with dropdown, notification bell with badge count | done |
+| S13.6 | specs/spec-S13.6-micro-interactions/ | S9.1, S9b.3 | frontend/src/ | Animations & micro-interactions | Page transition animations (framer-motion), skeleton shimmer loaders on all data pages, button press feedback (scale-95), hover card previews for paper links, toast notifications with slide-in animation, progress indicators for long operations, scroll-triggered fade-in for dashboard cards, smooth number counting animations for stats | done |
+| S13.7 | specs/spec-S13.7-responsive-mobile/ | S9.2 | frontend/src/ | Mobile-first responsive polish | Bottom navigation bar on mobile (replacing sidebar), swipe gestures for chat, pull-to-refresh on search, touch-optimized hit targets (min 44px), adaptive layouts (single → multi-column), sheet/drawer pattern for mobile filters, responsive typography (clamp-based fluid sizing) | done |
 
 ## Phase 14: Social & Community (AlphaXiv-inspired) — AFTER P9b done
 
@@ -538,7 +540,7 @@ pending → spec-written → done
 | S4b.3 | Multi-query retrieval | P4b | notebooks/specs/S4b.3_multi_query.ipynb | done |
 | S4b.4 | Parent-child chunk retrieval | P4b | notebooks/specs/S4b.4_parent_child.ipynb | done |
 | S4b.5 | Unified retrieval pipeline | P4b | notebooks/specs/S4b.5_retrieval_pipeline.ipynb | done |
-| S5.1 | LLM client (Ollama + Gemini 3 Flash) | P5 | notebooks/specs/S5.1_llm_client.ipynb | done |
+| S5.1 | LLM client (Ollama + Gemini) | P5 | notebooks/specs/S5.1_llm_client.ipynb | done |
 | S5.2 | RAG chain | P5 | notebooks/specs/S5.2_rag_chain.ipynb | done |
 | S5.3 | Streaming responses (SSE) | P5 | notebooks/specs/S5.3_streaming.ipynb | done |
 | S5.4 | Response caching (Redis) | P5 | notebooks/specs/S5.4_caching.ipynb | done |
@@ -559,15 +561,15 @@ pending → spec-written → done
 | S8.3 | Key highlights extraction | P8 | notebooks/specs/S8.3_highlights.ipynb | done |
 | S8.4 | Methodology analysis | P8 | notebooks/specs/S8.4_methodology.ipynb | done |
 | S8.5 | Paper comparison | P8 | notebooks/specs/S8.5_comparison.ipynb | done |
-| S9b.1 | Alembic migration setup | P9b | notebooks/specs/S9b.1_alembic.ipynb | pending |
-| S9b.2 | Platform dependency declaration | P9b | — | pending |
-| S9b.3 | Frontend infrastructure dependencies | P9b | — | pending |
-| S9b.4 | Frontend auth infrastructure | P9b | — | pending |
-| S9b.5 | Missing UI primitives (Dialog, Tabs, etc.) | P9b | — | pending |
-| S9b.6 | Collections backend API | P9b | notebooks/specs/S9b.6_collections_backend.ipynb | pending |
-| S9b.7 | Docker platform services (S3, sandbox) | P9b | — | pending |
-| S5b.1 | Anthropic Claude LLM provider | P5b | notebooks/specs/S5b.1_anthropic_provider.ipynb | pending |
-| S5b.2 | Multi-provider LLM routing | P5b | notebooks/specs/S5b.2_multi_provider.ipynb | pending |
+| S9b.1 | Alembic migration setup | P9b | notebooks/specs/S9b.1_alembic.ipynb | done |
+| S9b.2 | Platform dependency declaration | P9b | notebooks/specs/S9b.2_platform_deps.ipynb | done |
+| S9b.3 | Frontend infrastructure dependencies | P9b | — | done |
+| S9b.4 | Frontend auth infrastructure | P9b | — | done |
+| S9b.5 | Missing UI primitives (Dialog, Tabs, etc.) | P9b | — | done |
+| S9b.6 | Collections backend API | P9b | notebooks/specs/S9b.6_collections_backend.ipynb | done |
+| S9b.7 | Docker platform services (S3, sandbox) | P9b | — | done |
+| S5b.1 | Anthropic Claude LLM provider | P5b | — | done |
+| S5b.2 | Multi-provider LLM routing | P5b | notebooks/specs/S5b.2_multi_provider.ipynb | done |
 | S9.1 | Next.js project setup | P9 | — (Vitest) | done |
 | S9.2 | Layout & navigation | P9 | — | done |
 | S9.3 | Search interface | P9 | — | done |
@@ -595,13 +597,13 @@ pending → spec-written → done
 | S12.2 | Telegram RAG integration | P12 | notebooks/specs/S12.2_telegram_rag.ipynb | pending |
 | S12.3 | Telegram search | P12 | notebooks/specs/S12.3_telegram_search.ipynb | pending |
 | S12.4 | Telegram notifications | P12 | notebooks/specs/S12.4_telegram_notifications.ipynb | pending |
-| S13.1 | Premium landing page | P13 | — | pending |
-| S13.2 | Design system overhaul | P13 | — | pending |
-| S13.3 | Chat UX polish | P13 | — | pending |
-| S13.4 | Search & discovery polish | P13 | — | pending |
-| S13.5 | Premium navigation & command palette | P13 | — | pending |
-| S13.6 | Animations & micro-interactions | P13 | — | pending |
-| S13.7 | Mobile-first responsive polish | P13 | — | pending |
+| S13.1 | Premium landing page | P13 | — | done |
+| S13.2 | Design system overhaul | P13 | — | done |
+| S13.3 | Chat UX polish | P13 | — | done |
+| S13.4 | Search & discovery polish | P13 | — | done |
+| S13.5 | Premium navigation & command palette | P13 | — | done |
+| S13.6 | Animations & micro-interactions | P13 | — | done |
+| S13.7 | Mobile-first responsive polish | P13 | — | done |
 | S14.1 | User authentication & profiles | P14 | notebooks/specs/S14.1_user_auth.ipynb | pending |
 | S14.2 | Inline paper comments & discussions | P14 | notebooks/specs/S14.2_paper_comments.ipynb | pending |
 | S14.3 | Paper voting & engagement metrics | P14 | notebooks/specs/S14.3_voting.ipynb | pending |

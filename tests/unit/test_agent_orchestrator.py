@@ -2,10 +2,10 @@
 
 Tests cover:
 - Graph compilation and node registration
-- Happy path: guardrail → retrieve → grade → generate
-- Out-of-scope: guardrail reject → polite rejection
-- Rewrite retry loop: grade fails → rewrite → re-retrieve → generate
-- Max retrieval attempts enforcement
+- Fast path: parallel KB + web → single LLM call
+- No sources: KB empty + web empty → graceful fallback
+- KB sources preferred over web sources
+- Empty query validation
 - Result extraction helpers
 - Factory function
 """
@@ -87,27 +87,18 @@ class TestGraphCompilation:
 
 
 # ---------------------------------------------------------------------------
-# Test: Happy Path (FR-2)
+# Test: Fast Path — KB sources available
 # ---------------------------------------------------------------------------
 
 
-class TestHappyPathAsk:
-    """FR-2: Full happy path — guardrail pass → retrieve → grade → generate."""
+class TestFastPathWithKB:
+    """Fast path: KB retrieval returns results → single LLM call."""
 
     @pytest.mark.asyncio
-    async def test_happy_path_ask(self, mock_llm_provider, mock_retrieval_pipeline):
-        """Query flows through guardrail → retrieve → grade → generate and returns answer with sources."""
-        from src.services.agents.agentic_rag import AgenticRAGService
-
-        # Setup guardrail to pass
-        guardrail_response = GuardrailScoring(score=85, reason="Research question")
-        # Setup grading to mark all as relevant
-        from src.services.agents.models import GradeDocuments
-
-        grade_yes = GradeDocuments(binary_score="yes", reasoning="Relevant")
-
-        # Setup retrieval
+    async def test_kb_sources_used(self, mock_llm_provider, mock_retrieval_pipeline):
+        """When KB has results, they are used for generation."""
         from src.schemas.api.search import SearchHit
+        from src.services.agents.agentic_rag import AgenticRAGService
 
         mock_retrieval_pipeline.retrieve = AsyncMock(
             return_value=MagicMock(
@@ -121,43 +112,16 @@ class TestHappyPathAsk:
                         pdf_url="",
                     ),
                 ],
-                stages_executed=["hybrid_search", "rerank"],
+                stages_executed=["hybrid_search"],
                 total_candidates=20,
-                timings={"hybrid_search": 0.1, "rerank": 0.05},
+                timings={"hybrid_search": 0.1},
             )
         )
 
-        # Configure LLM mock to return different structured outputs per call
-        structured_mock = AsyncMock()
-        call_count = 0
-
-        async def side_effect(prompt):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return guardrail_response  # guardrail
-            elif call_count == 2:
-                return grade_yes  # grading
-            else:
-                return None  # shouldn't happen
-
-        structured_mock.ainvoke = side_effect
-
-        # For generate, we need a regular model
-        gen_mock = AsyncMock()
-        answer_text = (
-            "Transformers use self-attention [1].\n\n**Sources:**\n"
-            "1. [Attention Is All You Need](https://arxiv.org/abs/1706.03762) — Vaswani et al."
-        )
-        gen_mock.ainvoke = AsyncMock(return_value=AIMessage(content=answer_text))
-
+        answer_text = "Transformers use self-attention [1]."
         model_mock = MagicMock()
-        model_mock.with_structured_output.return_value = structured_mock
+        model_mock.ainvoke = AsyncMock(return_value=AIMessage(content=answer_text))
         mock_llm_provider.get_langchain_model.return_value = model_mock
-
-        # For generation node, it doesn't use structured output — it uses ainvoke directly
-        # So we need to handle both: with_structured_output and direct ainvoke
-        model_mock.ainvoke = gen_mock.ainvoke
 
         service = AgenticRAGService(
             llm_provider=mock_llm_provider,
@@ -168,200 +132,150 @@ class TestHappyPathAsk:
 
         assert result.answer is not None
         assert len(result.answer) > 0
+        assert result.metadata["kb_sources"] == 1
         assert isinstance(result.sources, list)
-        assert isinstance(result.reasoning_steps, list)
-        assert isinstance(result.metadata, dict)
+        assert len(result.sources) == 1
+        assert result.sources[0].arxiv_id == "1706.03762"
 
 
 # ---------------------------------------------------------------------------
-# Test: Out-of-Scope (FR-3)
+# Test: Fast Path — KB empty, web fallback
 # ---------------------------------------------------------------------------
 
 
-class TestOutOfScopeQuery:
-    """FR-3: Off-topic query → guardrail reject → out_of_scope message."""
+class TestFastPathWebFallback:
+    """Fast path: KB empty → web search provides sources."""
 
     @pytest.mark.asyncio
-    async def test_out_of_scope_query(self, mock_llm_provider, mock_retrieval_pipeline):
-        """Off-topic query gets politely rejected."""
+    async def test_web_fallback_used(self, mock_llm_provider, mock_retrieval_pipeline):
+        """When KB is empty but web search has results, web sources are used."""
         from src.services.agents.agentic_rag import AgenticRAGService
+        from src.services.web_search.service import WebSearchResponse, WebSearchResult, WebSearchService
 
-        # Guardrail rejects
-        guardrail_response = GuardrailScoring(score=10, reason="Off-topic: cooking recipe")
-
-        structured_mock = AsyncMock()
-        structured_mock.ainvoke = AsyncMock(return_value=guardrail_response)
-
-        model_mock = MagicMock()
-        model_mock.with_structured_output.return_value = structured_mock
-        mock_llm_provider.get_langchain_model.return_value = model_mock
-
-        service = AgenticRAGService(
-            llm_provider=mock_llm_provider,
-            retrieval_pipeline=mock_retrieval_pipeline,
+        # KB returns nothing
+        mock_retrieval_pipeline.retrieve = AsyncMock(
+            return_value=MagicMock(results=[], stages_executed=[], total_candidates=0, timings={})
         )
 
-        result = await service.ask("How do I make pasta carbonara?")
-
-        assert "research assistant" in result.answer.lower() or "can't help" in result.answer.lower()
-        assert len(result.sources) == 0
-
-    def test_out_of_scope_node_function(self):
-        """The out_of_scope node returns a polite rejection AIMessage."""
-        from src.services.agents.agentic_rag import ainvoke_out_of_scope_step
-        from src.services.agents.state import create_initial_state
-
-        state = create_initial_state("How to make pizza?")
-        result = ainvoke_out_of_scope_step(state)
-
-        assert "messages" in result
-        assert len(result["messages"]) == 1
-        msg = result["messages"][0]
-        assert isinstance(msg, AIMessage)
-        assert "research assistant" in msg.content.lower()
-
-
-# ---------------------------------------------------------------------------
-# Test: Rewrite Retry Loop (FR-2 edge)
-# ---------------------------------------------------------------------------
-
-
-class TestRewriteRetryLoop:
-    """Grade fails → rewrite → re-retrieve → grade passes → generate."""
-
-    @pytest.mark.asyncio
-    async def test_rewrite_retry_loop(self, mock_llm_provider, mock_retrieval_pipeline):
-        """After grading finds no relevant docs, rewrite and retry."""
-        from src.schemas.api.search import SearchHit
-        from src.services.agents.agentic_rag import AgenticRAGService
-        from src.services.agents.models import GradeDocuments
-        from src.services.agents.nodes.rewrite_query_node import QueryRewriteOutput
-
-        # Setup retrieval to always return docs
-        mock_retrieval_pipeline.retrieve = AsyncMock(
-            return_value=MagicMock(
+        # Web search returns results
+        mock_web = AsyncMock(spec=WebSearchService)
+        mock_web.search = AsyncMock(
+            return_value=WebSearchResponse(
+                query="test",
                 results=[
-                    SearchHit(
-                        arxiv_id="2001.00001",
-                        title="Some Paper",
-                        authors=["Author A"],
-                        score=0.5,
-                        chunk_text="Some content about the topic.",
-                        pdf_url="",
-                    ),
+                    WebSearchResult(title="Web Result", url="https://example.com/paper", snippet="Relevant content here.", source="example.com"),
                 ],
-                stages_executed=["hybrid_search"],
-                total_candidates=10,
-                timings={"hybrid_search": 0.1},
             )
         )
 
-        guardrail_pass = GuardrailScoring(score=80, reason="Research question")
-        grade_no = GradeDocuments(binary_score="no", reasoning="Not relevant")
-        grade_yes = GradeDocuments(binary_score="yes", reasoning="Relevant")
-        rewrite_output = QueryRewriteOutput(rewritten_query="improved query", reasoning="Expanded terms")
-
-        # Track call sequence to return different responses
-        structured_calls = []
-
-        responses = {1: guardrail_pass, 2: grade_no, 3: rewrite_output, 4: grade_yes}
-
-        async def structured_side_effect(prompt):
-            structured_calls.append(prompt)
-            return responses.get(len(structured_calls), grade_yes)
-
-        structured_mock = AsyncMock()
-        structured_mock.ainvoke = structured_side_effect
-
-        rewrite_answer = (
-            "Answer based on rewritten query [1].\n\n**Sources:**\n1. [Some Paper](https://arxiv.org/abs/2001.00001) — Author A"
-        )
+        answer_text = "Based on web sources, the answer is X [1]."
         model_mock = MagicMock()
-        model_mock.with_structured_output.return_value = structured_mock
-        model_mock.ainvoke = AsyncMock(return_value=AIMessage(content=rewrite_answer))
+        model_mock.ainvoke = AsyncMock(return_value=AIMessage(content=answer_text))
         mock_llm_provider.get_langchain_model.return_value = model_mock
 
         service = AgenticRAGService(
             llm_provider=mock_llm_provider,
             retrieval_pipeline=mock_retrieval_pipeline,
-            max_retrieval_attempts=3,
+            web_search_service=mock_web,
         )
 
         result = await service.ask("What is quantum computing?")
 
         assert result.answer is not None
         assert len(result.answer) > 0
-        # Should have done at least 2 retrieval attempts
-        assert mock_retrieval_pipeline.retrieve.call_count >= 2
+        assert result.metadata["kb_sources"] == 0
+        assert result.metadata["web_sources"] > 0
 
 
 # ---------------------------------------------------------------------------
-# Test: Max Retrieval Attempts (FR-2 edge)
+# Test: No sources at all
 # ---------------------------------------------------------------------------
 
 
-class TestMaxRetrievalAttempts:
-    """Rewrite loop stops after max attempts."""
+class TestNoSourcesAvailable:
+    """Both KB and web return nothing."""
 
     @pytest.mark.asyncio
-    async def test_max_retrieval_attempts(self, mock_llm_provider, mock_retrieval_pipeline):
-        """After max attempts, force generation even without relevant sources."""
+    async def test_no_sources_graceful(self, mock_llm_provider, mock_retrieval_pipeline):
+        """When no sources are found anywhere, return a graceful message (no LLM call)."""
+        from src.services.agents.agentic_rag import AgenticRAGService
+
+        # KB returns nothing
+        mock_retrieval_pipeline.retrieve = AsyncMock(
+            return_value=MagicMock(results=[], stages_executed=[], total_candidates=0, timings={})
+        )
+
+        service = AgenticRAGService(
+            llm_provider=mock_llm_provider,
+            retrieval_pipeline=mock_retrieval_pipeline,
+            # No web search service
+        )
+
+        result = await service.ask("Some obscure topic?")
+
+        assert "couldn't find" in result.answer.lower() or "no relevant" in result.answer.lower()
+        assert len(result.sources) == 0
+        # No LLM call should have been made
+        mock_llm_provider.get_langchain_model.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Test: KB preferred over web
+# ---------------------------------------------------------------------------
+
+
+class TestKBPreferredOverWeb:
+    """When KB has sources, web sources are not used."""
+
+    @pytest.mark.asyncio
+    async def test_kb_preferred(self, mock_llm_provider, mock_retrieval_pipeline):
+        """KB sources take priority even when web also returns results."""
         from src.schemas.api.search import SearchHit
         from src.services.agents.agentic_rag import AgenticRAGService
-        from src.services.agents.models import GradeDocuments
-        from src.services.agents.nodes.rewrite_query_node import QueryRewriteOutput
+        from src.services.web_search.service import WebSearchResponse, WebSearchResult, WebSearchService
 
         mock_retrieval_pipeline.retrieve = AsyncMock(
             return_value=MagicMock(
                 results=[
                     SearchHit(
-                        arxiv_id="2001.00001",
-                        title="Irrelevant Paper",
-                        authors=["Author A"],
-                        score=0.3,
-                        chunk_text="Not really about the topic.",
+                        arxiv_id="2301.00001",
+                        title="KB Paper",
+                        authors=["Author"],
+                        score=0.9,
+                        chunk_text="KB content.",
                         pdf_url="",
                     ),
                 ],
                 stages_executed=["hybrid_search"],
                 total_candidates=5,
-                timings={"hybrid_search": 0.1},
+                timings={},
             )
         )
 
-        guardrail_pass = GuardrailScoring(score=80, reason="Research question")
-        grade_no = GradeDocuments(binary_score="no", reasoning="Not relevant")
-        rewrite_output = QueryRewriteOutput(rewritten_query="another query", reasoning="Tried again")
-
-        async def structured_side_effect(prompt):
-            # Always guardrail pass, always grade no, always rewrite
-            if "domain relevance" in str(prompt).lower() or "rate the following" in str(prompt).lower():
-                return guardrail_pass
-            elif "rewrite" in str(prompt).lower() or "rephrase" in str(prompt).lower():
-                return rewrite_output
-            return grade_no
-
-        structured_mock = AsyncMock()
-        structured_mock.ainvoke = structured_side_effect
-
-        model_mock = MagicMock()
-        model_mock.with_structured_output.return_value = structured_mock
-        model_mock.ainvoke = AsyncMock(
-            return_value=AIMessage(content="I don't have papers on that exact topic in my knowledge base.")
+        mock_web = AsyncMock(spec=WebSearchService)
+        mock_web.search = AsyncMock(
+            return_value=WebSearchResponse(
+                query="test",
+                results=[WebSearchResult(title="Web", url="https://example.com", snippet="Web content.", source="example.com")],
+            )
         )
+
+        answer_text = "Answer from KB [1]."
+        model_mock = MagicMock()
+        model_mock.ainvoke = AsyncMock(return_value=AIMessage(content=answer_text))
         mock_llm_provider.get_langchain_model.return_value = model_mock
 
         service = AgenticRAGService(
             llm_provider=mock_llm_provider,
             retrieval_pipeline=mock_retrieval_pipeline,
-            max_retrieval_attempts=2,
+            web_search_service=mock_web,
         )
 
-        result = await service.ask("Obscure niche topic?")
+        result = await service.ask("What is deep learning?")
 
-        assert result.answer is not None
-        # Should not exceed max attempts
-        assert mock_retrieval_pipeline.retrieve.call_count <= 3  # max_attempts + 1 tolerance
+        assert result.metadata["kb_sources"] == 1
+        # KB sources used for generation
+        assert result.sources[0].arxiv_id == "2301.00001"
 
 
 # ---------------------------------------------------------------------------
@@ -501,6 +415,8 @@ class TestExtractReasoningSteps:
     """_extract_reasoning_steps helper."""
 
     def test_extract_reasoning_steps_full(self):
+        from unittest.mock import MagicMock
+
         from src.services.agents.agentic_rag import AgenticRAGService
 
         state = {
@@ -520,7 +436,8 @@ class TestExtractReasoningSteps:
             "metadata": {},
         }
 
-        steps = AgenticRAGService._extract_reasoning_steps(state)
+        service = AgenticRAGService(llm_provider=MagicMock())
+        steps = service._extract_reasoning_steps(state)
 
         assert isinstance(steps, list)
         assert len(steps) > 0
@@ -531,10 +448,13 @@ class TestExtractReasoningSteps:
         assert "grad" in combined
 
     def test_extract_reasoning_steps_empty_state(self):
+        from unittest.mock import MagicMock
+
         from src.services.agents.agentic_rag import AgenticRAGService
 
+        service = AgenticRAGService(llm_provider=MagicMock())
         state = {}
-        steps = AgenticRAGService._extract_reasoning_steps(state)
+        steps = service._extract_reasoning_steps(state)
         assert isinstance(steps, list)
 
 
@@ -579,6 +499,28 @@ class TestFactory:
         from src.services.agents.agentic_rag import AgenticRAGService
 
         assert isinstance(service, AgenticRAGService)
+
+
+# ---------------------------------------------------------------------------
+# Test: Out-of-scope node (still works via graph)
+# ---------------------------------------------------------------------------
+
+
+class TestOutOfScopeNode:
+    """The out_of_scope node returns a polite rejection AIMessage."""
+
+    def test_out_of_scope_node_function(self):
+        from src.services.agents.agentic_rag import ainvoke_out_of_scope_step
+        from src.services.agents.state import create_initial_state
+
+        state = create_initial_state("How to make pizza?")
+        result = ainvoke_out_of_scope_step(state)
+
+        assert "messages" in result
+        assert len(result["messages"]) == 1
+        msg = result["messages"][0]
+        assert isinstance(msg, AIMessage)
+        assert "research assistant" in msg.content.lower()
 
 
 # ---------------------------------------------------------------------------

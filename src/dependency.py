@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import Settings, get_settings
 from src.db import _get_database, get_db_session
 from src.db.database import Database
+from src.repositories.collection import CollectionRepository
 from src.repositories.paper import PaperRepository
 from src.services.arxiv.client import ArxivClient
 from src.services.arxiv.factory import make_arxiv_client
@@ -25,13 +26,17 @@ from src.services.chat.follow_up import FollowUpHandler
 from src.services.chat.memory import ConversationMemory
 from src.services.embeddings.client import JinaEmbeddingsClient
 from src.services.embeddings.factory import make_embeddings_client
-from src.services.llm.factory import create_llm_provider
+from src.services.agents.agentic_rag import AgenticRAGService
+from src.services.agents.factory import create_agentic_rag_service
+from src.services.llm.factory import create_llm_provider, create_llm_router
 from src.services.llm.provider import LLMProvider
+from src.services.llm.router import LLMRouter
 from src.services.opensearch.client import OpenSearchClient
 from src.services.opensearch.factory import make_opensearch_client
 from src.services.rag.chain import RAGChain
 from src.services.rag.factory import create_rag_chain
 from src.services.reranking.factory import create_reranker_service
+from src.services.web_search.service import WebSearchService
 from src.services.reranking.service import RerankerService
 from src.services.retrieval.factory import create_hyde_service, create_multi_query_service, create_retrieval_pipeline
 from src.services.retrieval.hyde import HyDEService
@@ -60,6 +65,14 @@ def get_paper_repository(session: SessionDep) -> PaperRepository:
 
 PaperRepoDep = Annotated[PaperRepository, Depends(get_paper_repository)]
 
+
+def get_collection_repository(session: SessionDep) -> CollectionRepository:
+    """Return a CollectionRepository bound to the current session."""
+    return CollectionRepository(session)
+
+
+CollectionRepoDep = Annotated[CollectionRepository, Depends(get_collection_repository)]
+
 ArxivClientDep = Annotated[ArxivClient, Depends(make_arxiv_client)]
 
 
@@ -86,12 +99,32 @@ def get_reranker_service() -> RerankerService:
 RerankerDep = Annotated[RerankerService, Depends(get_reranker_service)]
 
 
+_llm_provider: LLMProvider | None = None
+
+
 def get_llm_provider(settings: SettingsDep) -> LLMProvider:
-    """Return the preferred LLM provider based on configuration."""
-    return create_llm_provider(settings)
+    """Return the preferred LLM provider (cached singleton to avoid connection leaks)."""
+    global _llm_provider
+    if _llm_provider is None:
+        _llm_provider = create_llm_provider(settings)
+    return _llm_provider
 
 
 LLMProviderDep = Annotated[LLMProvider, Depends(get_llm_provider)]
+
+
+_llm_router: LLMRouter | None = None
+
+
+def get_llm_router(settings: SettingsDep) -> LLMRouter:
+    """Return the LLM router (cached singleton)."""
+    global _llm_router
+    if _llm_router is None:
+        _llm_router = create_llm_router(settings)
+    return _llm_router
+
+
+LLMRouterDep = Annotated[LLMRouter, Depends(get_llm_router)]
 
 
 def get_hyde_service(
@@ -155,18 +188,55 @@ def get_retrieval_pipeline(
 RetrievalPipelineDep = Annotated[RetrievalPipeline, Depends(get_retrieval_pipeline)]
 
 
+def get_web_search_service() -> WebSearchService:
+    """Create WebSearchService — no API key needed."""
+    return WebSearchService(max_results=5)
+
+
+WebSearchDep = Annotated[WebSearchService, Depends(get_web_search_service)]
+
+
 def get_rag_chain(
     llm_provider: LLMProviderDep,
     retrieval_pipeline: RetrievalPipelineDep,
+    arxiv_client: ArxivClientDep,
+    web_search: WebSearchDep,
 ) -> RAGChain:
-    """Create RAGChain with injected dependencies."""
+    """Create RAGChain with injected dependencies (KB + arXiv + web search)."""
     return create_rag_chain(
         llm_provider=llm_provider,
         retrieval_pipeline=retrieval_pipeline,
+        arxiv_client=arxiv_client,
+        web_search_service=web_search,
     )
 
 
 RAGChainDep = Annotated[RAGChain, Depends(get_rag_chain)]
+
+
+# ---------------------------------------------------------------------------
+# Agentic RAG — primary Q&A engine (replaces RAGChain for chat/ask)
+# ---------------------------------------------------------------------------
+
+
+def get_agentic_rag_service(
+    llm_provider: LLMProviderDep,
+    retrieval_pipeline: RetrievalPipelineDep,
+    web_search: WebSearchDep,
+    arxiv_client: ArxivClientDep,
+) -> AgenticRAGService:
+    """Create AgenticRAGService with KB retrieval + web search fallback."""
+    cache = get_cache_client()
+    return create_agentic_rag_service(
+        llm_provider=llm_provider,
+        retrieval_pipeline=retrieval_pipeline,
+        cache_service=cache,
+        web_search_service=web_search,
+        arxiv_client=arxiv_client,
+    )
+
+
+AgenticRAGDep = Annotated[AgenticRAGService, Depends(get_agentic_rag_service)]
 
 
 # ---------------------------------------------------------------------------
@@ -218,24 +288,27 @@ ConversationMemoryDep = Annotated[ConversationMemory | None, Depends(get_convers
 
 def get_follow_up_handler(
     llm_provider: LLMProviderDep,
-    rag_chain: RAGChainDep,
+    agentic_rag: AgenticRAGDep,
     memory: ConversationMemoryDep,
 ) -> FollowUpHandler:
-    """Create FollowUpHandler with injected dependencies."""
-    return FollowUpHandler(llm_provider=llm_provider, rag_chain=rag_chain, memory=memory)
+    """Create FollowUpHandler with agentic RAG (KB + web search fallback)."""
+    return FollowUpHandler(llm_provider=llm_provider, rag_chain=agentic_rag, memory=memory)
 
 
 FollowUpHandlerDep = Annotated[FollowUpHandler, Depends(get_follow_up_handler)]
 
 
 __all__ = [
+    "AgenticRAGDep",
     "ArxivClientDep",
     "CacheDep",
+    "CollectionRepoDep",
     "ConversationMemoryDep",
     "FollowUpHandlerDep",
     "EmbeddingsDep",
     "HyDEDep",
     "LLMProviderDep",
+    "LLMRouterDep",
     "MultiQueryDep",
     "OpenSearchDep",
     "RAGChainDep",
@@ -245,6 +318,7 @@ __all__ = [
     "PaperRepoDep",
     "SessionDep",
     "SettingsDep",
+    "get_agentic_rag_service",
     "get_cache_client",
     "get_conversation_memory",
     "get_database",

@@ -48,10 +48,9 @@ def mock_embeddings_client():
 
 @pytest.fixture
 def mock_opensearch_client():
-    """Mock OpenSearch client that returns fake search results (sync methods)."""
+    """Mock OpenSearch client that returns fake search results."""
     client = MagicMock()
-    client.search_chunks_vectors = MagicMock(
-        return_value={
+    _vector_results = {
             "total": 2,
             "hits": [
                 {
@@ -80,7 +79,8 @@ def mock_opensearch_client():
                 },
             ],
         }
-    )
+    client.search_chunks_vectors = MagicMock(return_value=_vector_results)
+    client.asearch_chunks_vectors = AsyncMock(return_value=_vector_results)
     return client
 
 
@@ -204,7 +204,7 @@ class TestRetrieveWithHyDE:
         # Verify the pipeline: LLM generate -> embed hypothetical -> vector search
         mock_llm_provider.generate.assert_called_once()
         mock_embeddings_client.embed_query.assert_called_once()
-        mock_opensearch_client.search_chunks_vectors.assert_called_once()
+        mock_opensearch_client.asearch_chunks_vectors.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_retrieve_with_hyde_empty_query(self, hyde_service):
@@ -226,7 +226,7 @@ class TestRetrieveWithHyDE:
         assert result.hypothetical_document == "What are transformers?"
         # embed_query should be called with original query as fallback
         mock_embeddings_client.embed_query.assert_called_once()
-        mock_opensearch_client.search_chunks_vectors.assert_called_once()
+        mock_opensearch_client.asearch_chunks_vectors.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_retrieve_with_hyde_fallback_on_embed_error(
@@ -248,7 +248,7 @@ class TestRetrieveWithHyDE:
     @pytest.mark.asyncio
     async def test_retrieve_with_hyde_empty_results(self, hyde_service, mock_opensearch_client):
         """Verify returns empty HyDEResult when no search hits."""
-        mock_opensearch_client.search_chunks_vectors.return_value = {"total": 0, "hits": []}
+        mock_opensearch_client.asearch_chunks_vectors.return_value = {"total": 0, "hits": []}
 
         result = await hyde_service.retrieve_with_hyde("obscure topic with no papers")
 
@@ -259,7 +259,7 @@ class TestRetrieveWithHyDE:
         """Verify top_k parameter passed to search."""
         await hyde_service.retrieve_with_hyde("What are transformers?", top_k=5)
 
-        call_kwargs = mock_opensearch_client.search_chunks_vectors.call_args
+        call_kwargs = mock_opensearch_client.asearch_chunks_vectors.call_args
         assert call_kwargs[1].get("size") == 5 or call_kwargs.kwargs.get("size") == 5
 
     @pytest.mark.asyncio
@@ -267,7 +267,7 @@ class TestRetrieveWithHyDE:
         """Verify default top_k is 20."""
         await hyde_service.retrieve_with_hyde("What are transformers?")
 
-        call_kwargs = mock_opensearch_client.search_chunks_vectors.call_args
+        call_kwargs = mock_opensearch_client.asearch_chunks_vectors.call_args
         assert call_kwargs[1].get("size") == 20 or call_kwargs.kwargs.get("size") == 20
 
 

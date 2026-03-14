@@ -34,7 +34,6 @@ multi-head attention, allowing parallel processing of sequences...
 - **ALWAYS** use agent tool calls (retrieval, search) before generating answers
 - **NEVER** write code without a spec (spec-driven development)
 - **ALWAYS** write tests FIRST (TDD: Red → Green → Refactor)
-- **ALWAYS** create a notebook for each backend spec: `notebooks/specs/S{x}.{y}_{slug}.ipynb`
 - **NEVER** hardcode secrets — all config via environment variables
 - **ALWAYS** use async/await for I/O operations
 - **NEVER** commit .env files or credentials
@@ -42,31 +41,34 @@ multi-head attention, allowing parallel processing of sequences...
 - **ALWAYS** append a spec summary to `docs/spec-summaries.md` after verification passes
 - **ALWAYS** mock external services in tests (arXiv, Jina, Ollama, Gemini, Cohere)
 - **NEVER** skip the checklist — update progressively as you implement
-- **ALWAYS** ensure each spec is testable via notebook AND via UI (Gradio or Next.js)
+- **ALWAYS** ensure each spec is testable via UI (Next.js frontend)
 
 ## Tech Stack
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
 | Backend | Python 3.12 + FastAPI | Async, auto-docs |
-| Frontend | Next.js 15 + TypeScript + Tailwind + shadcn/ui | App Router |
-| Database | PostgreSQL 16 + SQLAlchemy 2.0 | Async engine |
+| Frontend | Next.js 16 + React 19 + TypeScript + Tailwind v4 + shadcn/ui | App Router |
+| Database | PostgreSQL 16 + SQLAlchemy 2.0 + Alembic | Async engine, migrations |
 | Search | OpenSearch 2.19 | BM25 + KNN hybrid |
 | Embeddings | Jina AI v3 (1024-dim) | Free API |
 | Re-ranking | Cross-encoder (ms-marco-MiniLM-L-12-v2) | Second-stage relevance scoring |
-| LLM (local) | Ollama (llama3.2) | Dev only |
-| LLM (cloud) | Google Gemini 3 Flash | Research tasks |
+| LLM (local) | Ollama (llama3.2:1b) | Dev only |
+| LLM (cloud) | Google Gemini (gemini-2.5-flash) | Research Q&A, summarization |
+| LLM (code) | Anthropic Claude (claude-sonnet-4) | Code generation, multi-provider routing |
 | Agents | LangGraph 0.2+ | State-machine flows |
+| Web Search | DuckDuckGo (ddgs) | Fallback when KB insufficient |
 | Caching | Redis 7 | 24h TTL |
-| PDF Parsing | Docling 2.43+ | Section-aware |
-| Observability | Langfuse v3 | LLM tracing |
+| PDF Parsing | Docling 2.43+ / PyMuPDF | Section-aware, fallback |
+| Object Storage | MinIO | Audio files, code artifacts (dev) |
+| Observability | Langfuse v3 | LLM tracing (optional) |
 | Orchestration | Apache Airflow 2.10 | Data ingestion |
-| Testing | pytest + pytest-asyncio (backend), Vitest (frontend) | TDD |
+| Testing | pytest (~303 tests), Vitest (~693 tests) | Full-stack TDD |
 | Linting | Ruff (Python, line-length: 130), ESLint + Prettier (TS) | |
 | Package Mgr | UV (Python), pnpm (Node) | Fast |
 | Cloud | GCP Cloud Run | Scale to zero |
-| Telegram | python-telegram-bot 21+ | Mobile-first research assistant |
-| Evaluation | RAGAS + custom LLM judges | Quality benchmarks |
+| Telegram | python-telegram-bot 21+ | Mobile-first research assistant (planned) |
+| Evaluation | RAGAS + custom LLM judges | Quality benchmarks (planned) |
 
 ## Project Structure
 
@@ -113,7 +115,7 @@ PaperAlchemy/
 │   │   ├── pdf_parser/              # Docling parser
 │   │   └── telegram/               # Telegram bot (commands, handlers, notifications)
 │   └── db/                          # Database engine + sessions
-├── frontend/                        # Next.js 15 app
+├── frontend/                        # Next.js 16 + React 19 app
 │   ├── src/
 │   │   ├── app/                     # App Router pages
 │   │   ├── components/              # Reusable UI components
@@ -126,9 +128,7 @@ PaperAlchemy/
 │   ├── judges/                      # LLM-as-judge evaluators
 │   └── metrics/                     # RAGAS + custom metrics
 ├── notebooks/
-│   ├── week1-7/                     # REFERENCE: learning notebooks (old)
-│   └── specs/                       # NEW: one notebook per spec
-│       └── S{x}.{y}_{slug}.ipynb    # Interactive testing per spec
+│   └── week1-7/                     # REFERENCE: learning notebooks (old)
 ├── tests/                           # Python tests (pytest)
 │   ├── unit/
 │   ├── integration/
@@ -161,8 +161,19 @@ specs/spec-S{phase}.{number}-{slug}/
 | `/start-spec-dev` | S{x}.{y} {slug} | **Full lifecycle**: create → check deps → implement (TDD) → verify. Runs all 4 steps automatically. |
 | `/create-spec` | S{x}.{y} {slug} | Read roadmap, create spec.md + checklist.md |
 | `/check-spec-deps` | S{x}.{y} | Verify prerequisites are "done" |
-| `/implement-spec` | S{x}.{y} | Load spec, TDD (Red→Green→Refactor), create notebook |
-| `/verify-spec` | S{x}.{y} | Run tests, lint, audit outcomes, check notebook exists |
+| `/implement-spec` | S{x}.{y} | Load spec, TDD (Red→Green→Refactor) |
+| `/verify-spec` | S{x}.{y} | Run tests, lint, audit outcomes |
+
+### Post-Phase E2E Gate
+**After completing the last spec of any phase**, you MUST run a full end-to-end smoke test before moving to the next phase. This ensures new components haven't broken existing flows.
+
+1. **Backend**: `make test` (all unit + integration tests must pass)
+2. **Frontend**: `cd frontend && pnpm test` (all Vitest tests must pass)
+3. **Lint**: `make lint` (backend) + `cd frontend && pnpm lint` (frontend)
+4. **Docker compose up**: Verify services start cleanly (`docker compose up -d` → check health endpoints)
+5. **Manual smoke**: Hit key API endpoints (e.g., `/health`, `/api/v1/chat`, `/api/v1/search`) and verify no regressions
+
+If any E2E check fails, **fix before proceeding** — do not start the next phase with broken flows. Log any issues found and fixed in the relevant spec's checklist or in `docs/spec-summaries.md`.
 
 ## Code Standards
 
@@ -195,12 +206,6 @@ specs/spec-S{phase}.{number}-{slug}/
 - React Testing Library for component tests
 - MSW for API mocking
 
-### Notebooks (per-spec testing)
-- Location: `notebooks/specs/S{x}.{y}_{slug}.ipynb`
-- Each notebook must: import the module, run it, show output
-- Purpose: Interactive verification that spec works end-to-end
-- Can also be used for demos and presentations
-
 ## Advanced RAG Pipeline (Reference)
 The retrieval pipeline uses 4 stages:
 1. **Query Expansion**: Multi-query (3-5 variations) + HyDE (hypothetical doc embedding)
@@ -219,9 +224,14 @@ POSTGRES__HOST, POSTGRES__PORT, POSTGRES__USER, POSTGRES__PASSWORD, POSTGRES__DB
 # Search
 OPENSEARCH__HOST, OPENSEARCH__PORT
 
-# LLM
-OLLAMA__HOST, OLLAMA__PORT, OLLAMA__MODEL
-GEMINI__API_KEY, GEMINI__MODEL=gemini-3-flash
+# LLM — Multi-Provider
+OLLAMA__HOST, OLLAMA__PORT, OLLAMA__MODEL=llama3.2:1b
+GEMINI__API_KEY, GEMINI__MODEL=gemini-2.5-flash
+ANTHROPIC__API_KEY, ANTHROPIC__MODEL=claude-sonnet-4-20250514
+
+# LLM Routing
+LLM_ROUTING__RESEARCH_QA=gemini, LLM_ROUTING__CODE_GENERATION=anthropic
+LLM_ROUTING__FALLBACK_ORDER=gemini,anthropic,ollama
 
 # Re-ranking
 RERANKER__MODEL=cross-encoder/ms-marco-MiniLM-L-12-v2

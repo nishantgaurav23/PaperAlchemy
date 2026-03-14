@@ -63,13 +63,17 @@ async def generate_summary(
 ) -> SummaryResponse:
     """Generate an AI-powered structured summary for a paper."""
     try:
-        return await _summarizer.summarize(
+        result = await _summarizer.summarize(
             paper_id=paper_id,
             paper_repo=paper_repo,
             session=session,
             llm_provider=llm_provider,
             force=force,
         )
+        # Persist to DB
+        await paper_repo.update_analysis(paper_id, summary=result.summary.model_dump())
+        await session.commit()
+        return result
     except PaperNotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail) from e
     except InsufficientContentError as e:
@@ -85,13 +89,18 @@ async def generate_summary(
 async def extract_highlights(
     paper_id: uuid.UUID,
     paper_repo: PaperRepoDep,
+    session: SessionDep,
     llm_provider: LLMProviderDep,
     force: bool = Query(default=False, description="Force regeneration, bypassing any cache"),
 ) -> HighlightsResponse:
     """Extract key highlights and insights from a paper."""
     try:
         service = HighlightsService(llm_provider=llm_provider, paper_repo=paper_repo)
-        return await service.extract_highlights(paper_id, force=force)
+        result = await service.extract_highlights(paper_id, force=force)
+        # Persist to DB
+        await paper_repo.update_analysis(paper_id, highlights=result.highlights.model_dump())
+        await session.commit()
+        return result
     except PaperNotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail) from e
     except InsufficientContentError as e:
@@ -107,13 +116,18 @@ async def extract_highlights(
 async def analyze_methodology(
     paper_id: uuid.UUID,
     paper_repo: PaperRepoDep,
+    session: SessionDep,
     llm_provider: LLMProviderDep,
     force: bool = Query(default=False, description="Force regeneration, bypassing any cache"),
 ) -> MethodologyResponse:
     """Analyze the methodology and findings of a paper."""
     try:
         service = MethodologyService(llm_provider=llm_provider, paper_repo=paper_repo)
-        return await service.analyze_methodology(paper_id, force=force)
+        result = await service.analyze_methodology(paper_id, force=force)
+        # Persist to DB
+        await paper_repo.update_analysis(paper_id, methodology=result.analysis.model_dump())
+        await session.commit()
+        return result
     except PaperNotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail) from e
     except InsufficientContentError as e:

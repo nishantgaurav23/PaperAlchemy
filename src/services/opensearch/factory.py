@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
-
 from src.config import Settings, get_settings
 
 from .client import OpenSearchClient
 
+_cached_client: OpenSearchClient | None = None
 
-@lru_cache(maxsize=1)
+
 def make_opensearch_client(settings: Settings | None = None) -> OpenSearchClient:
     """Cached singleton OpenSearch client for app use."""
+    global _cached_client
+    if _cached_client is not None:
+        return _cached_client
     if settings is None:
         settings = get_settings()
-    return OpenSearchClient(host=settings.opensearch.host, settings=settings)
+    _cached_client = OpenSearchClient(host=settings.opensearch.host, settings=settings)
+    return _cached_client
 
 
 def make_opensearch_client_fresh(settings: Settings | None = None, host: str | None = None) -> OpenSearchClient:

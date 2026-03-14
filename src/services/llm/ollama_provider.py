@@ -25,7 +25,7 @@ class OllamaProvider:
     def __init__(self, settings: OllamaSettings) -> None:
         self._settings = settings
         self._base_url = settings.url
-        self._default_model = settings.default_model
+        self._default_model = settings.model
         self._default_temperature = settings.default_temperature
         self._default_top_p = settings.default_top_p
         self._client = httpx.AsyncClient(timeout=httpx.Timeout(float(settings.default_timeout)))

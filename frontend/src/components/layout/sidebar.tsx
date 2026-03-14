@@ -25,13 +25,19 @@ export function Sidebar() {
 
   return (
     <aside
+      role="complementary"
       className={cn(
-        "hidden md:flex flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-[width] duration-200",
-        collapsed ? "w-16" : "w-56"
+        "hidden md:flex flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-[width] duration-300 ease-in-out",
+        collapsed ? "w-16" : "w-60"
       )}
     >
       <div className={cn("flex h-14 items-center border-b border-border px-4", collapsed && "justify-center px-2")}>
-        <FlaskConical className="size-5 shrink-0 text-primary" />
+        <div
+          data-testid="logo-mark"
+          className="gradient-logo-mark flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary via-primary/80 to-violet-600"
+        >
+          <FlaskConical className="size-4 text-primary-foreground" />
+        </div>
         {!collapsed && <span className="ml-2 text-lg font-semibold tracking-tight">PaperAlchemy</span>}
       </div>
 
@@ -43,6 +49,7 @@ export function Sidebar() {
             label={item.label}
             icon={item.icon}
             collapsed={collapsed}
+            shortcut={item.shortcut}
           />
         ))}
       </nav>

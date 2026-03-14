@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getPaper, getRelatedPapers } from "./papers";
+import { getPaper, getRelatedPapers, listPapers } from "./papers";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: {
@@ -54,6 +54,47 @@ const mockPaperDetail = {
   },
 };
 
+describe("listPapers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls GET /api/v1/papers with no params", async () => {
+    mockGet.mockResolvedValue([]);
+
+    await listPapers();
+    expect(mockGet).toHaveBeenCalledWith("/api/v1/papers");
+  });
+
+  it("calls GET /api/v1/papers with query params", async () => {
+    mockGet.mockResolvedValue([]);
+
+    await listPapers({ query: "attention", category: "cs.AI", limit: 10, offset: 0 });
+    expect(mockGet).toHaveBeenCalledWith(
+      "/api/v1/papers?query=attention&category=cs.AI&limit=10&offset=0",
+    );
+  });
+
+  it("returns list of papers", async () => {
+    const mockPapers = [
+      {
+        id: "abc-123",
+        arxiv_id: "1706.03762",
+        title: "Attention Is All You Need",
+        authors: ["Ashish Vaswani"],
+        abstract: "...",
+        categories: ["cs.CL"],
+        published_date: "2017-06-12",
+      },
+    ];
+    mockGet.mockResolvedValue(mockPapers);
+
+    const result = await listPapers();
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe("Attention Is All You Need");
+  });
+});
+
 describe("getPaper", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -77,13 +118,6 @@ describe("getPaper", () => {
     mockGet.mockRejectedValue(new ApiError(404, "Not Found", { detail: "Paper not found" }));
 
     await expect(getPaper("nonexistent")).rejects.toThrow("API Error 404");
-  });
-
-  it("returns mock data when USE_MOCK is true", async () => {
-    const result = await getPaper("mock-id", true);
-    expect(result).toBeDefined();
-    expect(result.title).toBeTruthy();
-    expect(mockGet).not.toHaveBeenCalled();
   });
 });
 
@@ -117,12 +151,5 @@ describe("getRelatedPapers", () => {
     const result = await getRelatedPapers("abc-123");
     expect(result.papers).toHaveLength(1);
     expect(result.papers[0].title).toBe("BERT");
-  });
-
-  it("returns mock data when USE_MOCK is true", async () => {
-    const result = await getRelatedPapers("mock-id", true);
-    expect(result.papers).toBeDefined();
-    expect(result.papers.length).toBeGreaterThan(0);
-    expect(mockGet).not.toHaveBeenCalled();
   });
 });

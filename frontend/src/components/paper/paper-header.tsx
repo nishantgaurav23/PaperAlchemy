@@ -12,7 +12,10 @@ interface PaperHeaderProps {
 }
 
 function formatDate(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00");
+  if (!dateStr) return "";
+  // Handle both ISO datetime strings and date-only strings
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "";
   return date.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -42,7 +45,7 @@ export function PaperHeader({ paper }: PaperHeaderProps) {
       </h1>
 
       {paper.authors.length > 0 && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-base font-medium text-foreground/80">
           {paper.authors.join(", ")}
         </p>
       )}
@@ -102,9 +105,12 @@ export function PaperHeader({ paper }: PaperHeaderProps) {
       </div>
 
       {paper.abstract && (
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          {paper.abstract}
-        </p>
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">Abstract</h3>
+          <p className="text-base leading-7 text-foreground/85">
+            {paper.abstract}
+          </p>
+        </div>
       )}
     </div>
   );

@@ -15,7 +15,7 @@ class ChatRequest(BaseModel):
     """Chat message request body."""
 
     session_id: str = Field(..., min_length=1, max_length=128)
-    query: str = Field(..., min_length=1, max_length=500)
+    query: str = Field(..., min_length=1, max_length=2000)
     stream: bool = True
     top_k: int | None = Field(None, gt=0)
     categories: list[str] | None = None

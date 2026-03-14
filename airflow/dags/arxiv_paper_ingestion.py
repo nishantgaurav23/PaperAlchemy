@@ -1,11 +1,14 @@
 """Airflow DAG: arXiv paper ingestion pipeline.
 
-Pipeline: setup → fetch → report → cleanup
+Pipeline: setup → fetch → report
 
 Schedule: Mon-Fri at 06:00 UTC
 Retries: 2, with 30-minute delay
 Catchup: disabled
 Max active runs: 1
+
+PDFs are cached permanently in data/arxiv_pdfs/ (managed by the API).
+No cleanup task — PDFs are cheap to store and expensive to re-download.
 
 All task functions call the PaperAlchemy REST API via HTTP to avoid
 SQLAlchemy version conflicts between Airflow and the application.
@@ -24,7 +27,6 @@ if _dags_dir not in sys.path:
     sys.path.insert(0, _dags_dir)
 
 from airflow import DAG  # noqa: E402
-from airflow.operators.bash import BashOperator  # noqa: E402
 from airflow.operators.python import PythonOperator  # noqa: E402
 from arxiv_ingestion.fetching import fetch_daily_papers  # noqa: E402
 from arxiv_ingestion.reporting import generate_daily_report  # noqa: E402
@@ -66,9 +68,4 @@ with DAG(
         provide_context=True,
     )
 
-    t4_cleanup = BashOperator(
-        task_id="cleanup_old_pdfs",
-        bash_command="find /tmp/paperalchemy_pdfs -mtime +30 -delete || true",
-    )
-
-    t1_setup >> t2_fetch >> t3_report >> t4_cleanup
+    t1_setup >> t2_fetch >> t3_report

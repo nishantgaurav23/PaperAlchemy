@@ -103,7 +103,7 @@ class HyDEService:
                 return HyDEResult(hypothetical_document=hypothetical_doc)
 
         # Step 3: KNN search with the embedding
-        raw_results = self._opensearch.search_chunks_vectors(
+        raw_results = await self._opensearch.asearch_chunks_vectors(
             query_embedding=embedding,
             size=top_k,
         )

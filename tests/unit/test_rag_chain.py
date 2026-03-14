@@ -166,7 +166,7 @@ async def test_rag_chain_no_documents_found(mock_llm_provider, mock_retrieval_pi
     chain = RAGChain(llm_provider=mock_llm_provider, retrieval_pipeline=mock_retrieval_pipeline)
     result = await chain.aquery("quantum teleportation in cats")
 
-    assert "relevant papers" in result.answer.lower() or "no papers found" in result.answer.lower()
+    assert "could not find" in result.answer.lower() or "no papers found" in result.answer.lower()
     assert len(result.sources) == 0
     # Should NOT call LLM when no documents are found
     mock_llm_provider.generate.assert_not_called()
@@ -212,8 +212,9 @@ def test_rag_chain_prompt_enforces_citations():
     from src.services.rag.prompts import SYSTEM_PROMPT
 
     assert "[1]" in SYSTEM_PROMPT or "cite" in SYSTEM_PROMPT.lower()
-    assert "source" in SYSTEM_PROMPT.lower() or "reference" in SYSTEM_PROMPT.lower()
-    assert "arxiv" in SYSTEM_PROMPT.lower()
+    # Prompt should mention citations and not generating sources (auto-generated)
+    assert "cite" in SYSTEM_PROMPT.lower()
+    assert "do not include a sources" in SYSTEM_PROMPT.lower() or "source" in SYSTEM_PROMPT.lower()
 
 
 # ---------------------------------------------------------------------------

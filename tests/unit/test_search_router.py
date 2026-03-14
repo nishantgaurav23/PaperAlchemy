@@ -51,6 +51,8 @@ def _make_mock_opensearch(healthy: bool = True, results: dict | None = None):
     mock = MagicMock()
     mock.health_check.return_value = healthy
     mock.search_unified.return_value = results or _fake_search_results()
+    # Async wrapper used by the search router
+    mock.asearch_unified = AsyncMock(return_value=results or _fake_search_results())
     return mock
 
 
@@ -215,7 +217,7 @@ class TestSearchEndpoint:
         assert data["total"] == 3
         assert len(data["hits"]) == 3
         mock_emb.embed_query.assert_awaited_once_with("transformers attention")
-        mock_os.search_unified.assert_called_once()
+        mock_os.asearch_unified.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_bm25_fallback_on_embedding_failure(self, app_with_mocks):
@@ -229,8 +231,8 @@ class TestSearchEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["search_mode"] == "bm25"
-        # search_unified should be called with query_embedding=None
-        call_kwargs = mock_os.search_unified.call_args
+        # asearch_unified should be called with query_embedding=None
+        call_kwargs = mock_os.asearch_unified.call_args
         assert call_kwargs.kwargs.get("query_embedding") is None or call_kwargs[1].get("query_embedding") is None
 
     @pytest.mark.asyncio
@@ -256,7 +258,7 @@ class TestSearchEndpoint:
     @pytest.mark.asyncio
     async def test_search_empty_results(self, app_with_mocks):
         app, mock_os, mock_emb = app_with_mocks
-        mock_os.search_unified.return_value = {"total": 0, "hits": []}
+        mock_os.asearch_unified.return_value = {"total": 0, "hits": []}
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post("/api/v1/search", json={"query": "nonexistent topic"})
@@ -271,7 +273,7 @@ class TestSearchEndpoint:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post("/api/v1/search", json={"query": "test", "categories": ["cs.AI"]})
         assert resp.status_code == 200
-        call_kwargs = mock_os.search_unified.call_args
+        call_kwargs = mock_os.asearch_unified.call_args
         assert call_kwargs.kwargs.get("categories") == ["cs.AI"] or call_kwargs[1].get("categories") == ["cs.AI"]
 
     @pytest.mark.asyncio
@@ -282,7 +284,7 @@ class TestSearchEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["size"] == 5
-        call_kwargs = mock_os.search_unified.call_args
+        call_kwargs = mock_os.asearch_unified.call_args
         assert call_kwargs.kwargs.get("size") == 5 or call_kwargs[1].get("size") == 5
         assert call_kwargs.kwargs.get("from_") == 10 or call_kwargs[1].get("from_") == 10
 

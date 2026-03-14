@@ -4,3 +4,5 @@ export { SortSelect } from "./sort-select";
 export { PaperCard } from "./paper-card";
 export { Pagination } from "./pagination";
 export { SearchResults } from "./search-results";
+export { FilterPills } from "./filter-pills";
+export { MobileFilterSheet } from "./mobile-filter-sheet";

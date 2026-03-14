@@ -35,4 +35,16 @@ describe("WelcomeState", () => {
     render(<WelcomeState onSelectQuestion={vi.fn()} />);
     expect(screen.getByText("Try asking:")).toBeInTheDocument();
   });
+
+  it("renders gradient icon container", () => {
+    render(<WelcomeState onSelectQuestion={vi.fn()} />);
+    const iconContainer = screen.getByTestId("welcome-icon");
+    expect(iconContainer).toBeInTheDocument();
+    expect(iconContainer.className).toContain("bg-gradient-to-br");
+  });
+
+  it("renders AI-Powered Research badge", () => {
+    render(<WelcomeState onSelectQuestion={vi.fn()} />);
+    expect(screen.getByText("AI-Powered Research")).toBeInTheDocument();
+  });
 });

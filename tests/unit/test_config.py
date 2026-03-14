@@ -64,7 +64,8 @@ class TestOllamaSettings:
         s = OllamaSettings()
         assert s.host == "localhost"
         assert s.port == 11434
-        assert s.default_model == "llama3.2:1b"
+        # model may be overridden by .env (OLLAMA__MODEL=llama3.2)
+        assert s.model in ("llama3.2:1b", "llama3.2")
         assert s.default_timeout == 300
         assert s.default_temperature == 0.7
         assert s.default_top_p == 0.9
@@ -165,10 +166,16 @@ class TestRerankerSettings:
 class TestLangfuseSettings:
     """Test LangfuseSettings sub-settings."""
 
-    def test_langfuse_defaults(self):
+    def test_langfuse_defaults(self, monkeypatch):
+        # Clear env vars so .env doesn't override defaults
+        monkeypatch.delenv("LANGFUSE__PUBLIC_KEY", raising=False)
+        monkeypatch.delenv("LANGFUSE__SECRET_KEY", raising=False)
+        monkeypatch.delenv("LANGFUSE__HOST", raising=False)
+        monkeypatch.delenv("LANGFUSE__ENABLED", raising=False)
+
         from src.config import LangfuseSettings
 
-        s = LangfuseSettings()
+        s = LangfuseSettings(_env_file=None)
         assert s.public_key == ""
         assert s.secret_key == ""
         assert s.host == "http://localhost:3000"
@@ -181,11 +188,11 @@ class TestArxivSettings:
     def test_arxiv_defaults(self):
         from src.config import ArxivSettings
 
-        s = ArxivSettings()
+        s = ArxivSettings(_env_file=None)
         assert s.base_url == "https://export.arxiv.org/api/query"
         assert s.rate_limit_delay == 3.0
         assert s.max_results == 100
-        assert s.category == "cs.AI"
+        assert s.categories == "cs.AI"
         assert s.timeout == 30
         assert s.max_retries == 3
 

@@ -94,7 +94,7 @@ class ComparatorService:
 
             has_abstract = bool(paper.abstract and paper.abstract.strip())
             has_sections = bool(paper.sections)
-            has_pdf = bool(paper.pdf_content and paper.pdf_content.strip()) if hasattr(paper, "pdf_content") else False
+            has_pdf = bool(paper.pdf_content and paper.pdf_content.strip())
 
             if not has_abstract and not has_sections and not has_pdf:
                 raise InsufficientContentError(f"Paper {pid} has no abstract, sections, or PDF content")
@@ -162,7 +162,7 @@ class ComparatorService:
                     if content and content.strip():
                         paper_parts.append(f"## {title}\n{content.strip()}")
 
-            elif hasattr(paper, "pdf_content") and paper.pdf_content and paper.pdf_content.strip():
+            elif paper.pdf_content and paper.pdf_content.strip():
                 paper_parts.append(f"Full Text:\n{paper.pdf_content.strip()}")
 
             paper_text = "\n".join(paper_parts)

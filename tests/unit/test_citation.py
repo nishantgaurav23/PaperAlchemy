@@ -221,29 +221,36 @@ class TestEnforceCitations:
         result = enforce_citations(response)
 
         assert isinstance(result, CitationResult)
-        assert "**Sources:**" in result.formatted_answer
+        # formatted_answer contains only the answer text (no appended sources)
+        assert "**Sources:**" not in result.formatted_answer
+        assert "Transformers [1]" in result.formatted_answer
         assert result.validation.is_valid is True
         assert result.validation.citation_coverage == 1.0
-        assert result.sources_markdown != ""
+        # sources_markdown has the formatted source list for non-frontend consumers
+        assert "**Sources:**" in result.sources_markdown
 
     def test_strips_existing_sources(self):
         answer = "Transformers [1] are great.\n\n**Sources:**\n1. Some LLM-generated source\n2. Another one\n"
         response = _make_rag_response(answer, n_sources=2)
         result = enforce_citations(response)
 
-        # The LLM-generated sources section should be replaced
-        # There should be exactly one "**Sources:**" section
-        assert result.formatted_answer.count("**Sources:**") == 1
-        # The standardized source list should use our format
-        assert "Paper 1" in result.formatted_answer
+        # The LLM-generated sources section should be stripped from formatted_answer
+        assert "**Sources:**" not in result.formatted_answer
+        assert "Some LLM-generated source" not in result.formatted_answer
+        # The answer text itself is preserved
+        assert "Transformers [1] are great." in result.formatted_answer
+        # The standardized source list is in sources_markdown
+        assert "Paper 1" in result.sources_markdown
 
     def test_no_citations_in_text(self):
         answer = "This answer has no inline citations at all."
         response = _make_rag_response(answer, n_sources=2)
         result = enforce_citations(response)
 
-        # Should still append source list
-        assert "**Sources:**" in result.formatted_answer
+        # formatted_answer has only the answer text (no sources appended)
+        assert "**Sources:**" not in result.formatted_answer
+        # sources_markdown still has the source list for non-frontend consumers
+        assert "**Sources:**" in result.sources_markdown
         assert result.validation.is_valid is False
 
     def test_empty_answer(self):
@@ -265,7 +272,11 @@ class TestEnforceCitations:
         answer = "Some answer [1].\n\nSources:\n1. Paper A\n"
         response = _make_rag_response(answer, n_sources=2)
         result = enforce_citations(response)
-        assert result.formatted_answer.count("**Sources:**") == 1
+        # LLM-generated "Sources:" stripped from answer, not replaced
+        assert "Sources:" not in result.formatted_answer
+        assert "Some answer [1]." in result.formatted_answer
+        # Standardized sources in sources_markdown
+        assert "**Sources:**" in result.sources_markdown
 
 
 # ===========================================================================
@@ -289,7 +300,7 @@ class TestStreamWithCitations:
 
         full_text = "".join(tokens)
         assert "Hello" in full_text
-        assert "**Sources:**" in full_text
+        assert "[1]" in full_text
 
     @pytest.mark.asyncio
     async def test_strips_llm_sources_from_stream(self):
@@ -305,10 +316,10 @@ class TestStreamWithCitations:
             tokens.append(token)
 
         full_text = "".join(tokens)
-        # LLM-generated sources should be stripped and replaced
-        assert full_text.count("**Sources:**") == 1
+        # LLM-generated sources should be stripped from the stream
+        assert "**Sources:**" not in full_text
+        assert "Answer [1]." in full_text
         assert "LLM source" not in full_text
-        assert "Paper 1" in full_text
 
     @pytest.mark.asyncio
     async def test_empty_stream(self):

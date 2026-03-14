@@ -70,7 +70,7 @@ export function CategoryChart({ categories, loading }: CategoryChartProps) {
               borderColor: "hsl(var(--border))",
               borderRadius: "0.5rem",
             }}
-            formatter={(value: number) => [value, "Papers"]}
+            formatter={(value) => [String(value), "Papers"]}
           />
           <Legend />
         </PieChart>

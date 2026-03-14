@@ -160,13 +160,21 @@ def format_source_list(
     lines = ["**Sources:**"]
     for source in sources:
         title = source.title or source.arxiv_id or "Unknown"
-        year = _extract_year(source.arxiv_id)
+        year = _extract_year(source.arxiv_id) if source.arxiv_id else ""
         authors_str = _format_authors(source.authors)
 
-        # Build the line
-        title_part = f"[{title}]({source.arxiv_url})" if source.arxiv_url else title
+        # Pick the best URL: arxiv_url for papers, generic url for web
+        link_url = source.arxiv_url or source.url or ""
+        title_part = f"[{title}]({link_url})" if link_url else title
 
-        parts = [f"{source.index}. {title_part}"]
+        # Add source type badge
+        badge = ""
+        if source.source_type == "arxiv":
+            badge = " `[arXiv]`"
+        elif source.source_type == "web":
+            badge = " `[Web]`"
+
+        parts = [f"{source.index}. {title_part}{badge}"]
         if authors_str:
             parts.append(f" \u2014 {authors_str}")
         if year:
@@ -188,7 +196,7 @@ def _strip_sources_section(text: str) -> str:
 
 
 def enforce_citations(response: RAGResponse) -> CitationResult:
-    """Post-process a RAGResponse: parse, validate, format, append sources."""
+    """Post-process a RAGResponse: parse, validate, format, append ALL sources."""
     answer = response.answer.strip()
     sources = response.sources
 
@@ -201,14 +209,19 @@ def enforce_citations(response: RAGResponse) -> CitationResult:
     # 2. Validate
     validation = validate_citations(cited_indices, sources)
 
-    # 3. Strip any existing sources section
+    # 3. Strip any existing sources section the LLM may have generated.
+    #    The frontend renders SourceCards separately from message.sources,
+    #    so we must NOT include a markdown sources list in the answer text
+    #    (otherwise it shows up twice: once as markdown, once as SourceCards).
     cleaned = _strip_sources_section(answer)
 
-    # 4. Format source list
-    sources_md = format_source_list(sources)
+    # 4. Format source list — kept in sources_markdown for API consumers
+    #    that don't render SourceCards (e.g., Telegram bot, CLI)
+    sources_md = format_source_list(sources) if sources else ""
 
-    # 5. Compose formatted answer
-    formatted = f"{cleaned}\n\n{sources_md}" if sources_md else cleaned
+    # 5. Compose formatted answer: answer text only (no appended sources).
+    #    Downstream consumers that need sources in text form can use sources_markdown.
+    formatted = cleaned
 
     return CitationResult(
         formatted_answer=formatted,
@@ -223,8 +236,17 @@ def enforce_citations(response: RAGResponse) -> CitationResult:
 
 
 class _CitationStream:
-    """Async iterator that passes through tokens, strips LLM source sections,
-    and appends a standardized source list at the end."""
+    """Async iterator that streams tokens through in real-time, strips
+    LLM-generated source sections, and appends a standardized source list.
+
+    Tokens are forwarded as they arrive.  A trailing buffer is kept so that
+    an LLM-generated "Sources:" block at the end can be detected and stripped
+    without delaying the main body of the response.
+    """
+
+    # We buffer the last N characters to detect "Sources:" sections that the
+    # LLM may append at the end.  Only the buffer is subject to stripping.
+    _BUFFER_TRIGGER = "\nSources"  # shortest prefix that signals a sources block
 
     def __init__(self, tokens: AsyncIterator[str], sources: list[SourceReference]) -> None:
         self._tokens = tokens
@@ -237,25 +259,40 @@ class _CitationStream:
         return self._stream()
 
     async def _stream(self) -> AsyncIterator[str]:
+        """Stream tokens, buffering the tail to detect and strip LLM-generated Sources sections."""
+        buffer = ""
+
         async for token in self._tokens:
             self._accumulated += token
+            buffer += token
+
+            # Check if the buffer might contain the start of a Sources section.
+            # Hold back text once we see a potential trigger so we can strip it.
+            trigger_pos = buffer.find(self._BUFFER_TRIGGER)
+            if trigger_pos >= 0:
+                # Yield everything before the trigger
+                if trigger_pos > 0:
+                    yield buffer[:trigger_pos]
+                # Hold the rest in the buffer — it might be a Sources block
+                buffer = buffer[trigger_pos:]
+            elif len(buffer) > len(self._BUFFER_TRIGGER) + 50:
+                # Safe to flush most of the buffer (keep tail for trigger detection)
+                flush_to = len(buffer) - len(self._BUFFER_TRIGGER)
+                yield buffer[:flush_to]
+                buffer = buffer[flush_to:]
+
+        # Stream ended — check if the buffer is a Sources section to strip
+        if buffer:
+            cleaned_buffer = _strip_sources_section(buffer)
+            if cleaned_buffer.strip():
+                yield cleaned_buffer
 
         if not self._accumulated:
             self._done = True
             return
 
-        # Strip LLM-generated sources section
+        # Compute validation on the full accumulated text (after stripping sources)
         cleaned = _strip_sources_section(self._accumulated)
-
-        # Yield the cleaned answer
-        yield cleaned
-
-        # Build and yield the source list
-        sources_md = format_source_list(self._sources)
-        if sources_md:
-            yield f"\n\n{sources_md}"
-
-        # Compute validation
         cited = parse_citations(cleaned)
         self.validation = validate_citations(cited, self._sources)
         self._done = True

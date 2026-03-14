@@ -21,6 +21,8 @@ class AgentContext:
     llm_provider: Any  # LLMProvider protocol — Any to avoid import issues at runtime
     retrieval_pipeline: Any | None = None  # RetrievalPipeline | None
     cache_service: Any | None = None  # CacheClient | None
+    web_search_service: Any | None = None  # WebSearchService | None
+    arxiv_client: Any | None = None  # ArxivClient | None
     model_name: str = ""
     temperature: float = 0.7
     top_k: int = 5

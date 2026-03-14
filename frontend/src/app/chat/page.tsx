@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import { Plus } from "lucide-react";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { MessageInput } from "@/components/chat/message-input";
+import { FollowUpChips } from "@/components/chat/followup-chips";
 import { WelcomeState } from "@/components/chat/welcome-state";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { ScrollToBottom } from "@/components/chat/scroll-to-bottom";
@@ -30,6 +32,10 @@ export default function ChatPage() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastUserMessageRef = useRef<string>("");
+  // Refs to accumulate streaming data — avoids nested state updater issues
+  const streamingContentRef = useRef<string>("");
+  const streamingSourcesRef = useRef<ChatSource[]>([]);
+  const doneHandledRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
     const container = chatContainerRef.current;
@@ -70,47 +76,56 @@ export default function ChatPage() {
       setStreamingContent("");
       setStreamingSources([]);
       setStreamingTimestamp(Date.now());
+      streamingContentRef.current = "";
+      streamingSourcesRef.current = [];
+      doneHandledRef.current = false;
 
       const controller = streamChat(content, sessionId, {
         onToken: (token) => {
           setIsTyping(false);
-          setStreamingContent((prev) => prev + token);
+          streamingContentRef.current += token;
+          setStreamingContent(streamingContentRef.current);
         },
         onSources: (sources) => {
+          streamingSourcesRef.current = sources;
           setStreamingSources(sources);
         },
         onDone: () => {
-          setStreamingContent((prev) => {
-            setStreamingSources((sources) => {
-              const assistantMessage: ChatMessage = {
-                id: generateId(),
-                role: "assistant",
-                content: prev,
-                sources: sources.length > 0 ? sources : undefined,
-                timestamp: Date.now(),
-              };
-              setMessages((msgs) => [...msgs, assistantMessage]);
-              return [];
-            });
-            return "";
-          });
+          // Guard against duplicate calls
+          if (doneHandledRef.current) return;
+          doneHandledRef.current = true;
+
+          const finalContent = streamingContentRef.current;
+          const finalSources = streamingSourcesRef.current;
+
+          if (finalContent) {
+            const assistantMessage: ChatMessage = {
+              id: generateId(),
+              role: "assistant",
+              content: finalContent,
+              sources: finalSources.length > 0 ? finalSources : undefined,
+              timestamp: Date.now(),
+            };
+            setMessages((msgs) => [...msgs, assistantMessage]);
+          }
+          setStreamingContent("");
+          setStreamingSources([]);
           setIsStreaming(false);
           setIsTyping(false);
         },
         onError: (error) => {
-          setStreamingContent((prev) => {
-            if (prev) {
-              // Partial response — save what we have
-              const partialMessage: ChatMessage = {
-                id: generateId(),
-                role: "assistant",
-                content: prev,
-                timestamp: Date.now(),
-              };
-              setMessages((msgs) => [...msgs, partialMessage]);
-            }
-            return "";
-          });
+          const partialContent = streamingContentRef.current;
+          if (partialContent) {
+            const partialMessage: ChatMessage = {
+              id: generateId(),
+              role: "assistant",
+              content: partialContent,
+              timestamp: Date.now(),
+            };
+            setMessages((msgs) => [...msgs, partialMessage]);
+          }
+          setStreamingContent("");
+          setStreamingSources([]);
           const errorMessage: ChatMessage = {
             id: generateId(),
             role: "error",
@@ -134,19 +149,20 @@ export default function ChatPage() {
       abortControllerRef.current = null;
     }
 
-    setStreamingContent((prev) => {
-      if (prev) {
-        const partialMessage: ChatMessage = {
-          id: generateId(),
-          role: "assistant",
-          content: prev + "\n\n*(Response stopped)*",
-          timestamp: Date.now(),
-        };
-        setMessages((msgs) => [...msgs, partialMessage]);
-      }
-      return "";
-    });
+    doneHandledRef.current = true; // Prevent onDone from also firing
 
+    const partialContent = streamingContentRef.current;
+    if (partialContent) {
+      const partialMessage: ChatMessage = {
+        id: generateId(),
+        role: "assistant",
+        content: partialContent + "\n\n*(Response stopped)*",
+        timestamp: Date.now(),
+      };
+      setMessages((msgs) => [...msgs, partialMessage]);
+    }
+    setStreamingContent("");
+    setStreamingSources([]);
     setIsStreaming(false);
     setIsTyping(false);
   }, []);
@@ -161,6 +177,9 @@ export default function ChatPage() {
     setIsTyping(false);
     setStreamingContent("");
     setStreamingSources([]);
+    streamingContentRef.current = "";
+    streamingSourcesRef.current = [];
+    doneHandledRef.current = false;
   }, []);
 
   const handleRetry = useCallback(() => {
@@ -208,15 +227,29 @@ export default function ChatPage() {
           <WelcomeState onSelectQuestion={handleSelectQuestion} />
         ) : (
           <div className="flex flex-col gap-1 py-4">
-            {messages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                onRetry={msg.role === "error" ? handleRetry : undefined}
-              />
+            {messages.map((msg, idx) => (
+              <div key={msg.id}>
+                <MessageBubble
+                  message={msg}
+                  onRetry={msg.role === "error" ? handleRetry : undefined}
+                />
+                {/* Show follow-up chips after the last assistant message when not streaming */}
+                {msg.role === "assistant" &&
+                  msg.suggested_followups &&
+                  msg.suggested_followups.length > 0 &&
+                  idx === messages.length - 1 &&
+                  !isStreaming && (
+                    <FollowUpChips
+                      suggestions={msg.suggested_followups}
+                      onSelect={sendMessage}
+                    />
+                  )}
+              </div>
             ))}
 
-            {isTyping && <TypingIndicator />}
+            <AnimatePresence>
+              {isTyping && <TypingIndicator />}
+            </AnimatePresence>
 
             {streamingContent && !isTyping && (
               <MessageBubble

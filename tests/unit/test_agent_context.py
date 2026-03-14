@@ -105,6 +105,8 @@ class TestAgentContext:
             "llm_provider",
             "retrieval_pipeline",
             "cache_service",
+            "web_search_service",
+            "arxiv_client",
             "model_name",
             "temperature",
             "top_k",

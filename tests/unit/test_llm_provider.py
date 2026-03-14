@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from src.config import GeminiSettings, OllamaSettings, Settings
+from src.config import AnthropicSettings, GeminiSettings, OllamaSettings, Settings
 from src.exceptions import ConfigurationError, LLMConnectionError, LLMServiceError, LLMTimeoutError
 
 # ---------------------------------------------------------------------------
@@ -23,7 +23,7 @@ def _ollama_settings(**overrides) -> OllamaSettings:
     defaults = dict(
         host="localhost",
         port=11434,
-        default_model="llama3.2:1b",
+        model="llama3.2:1b",
         default_timeout=300,
         default_temperature=0.7,
         default_top_p=0.9,
@@ -36,6 +36,12 @@ def _gemini_settings(**overrides) -> GeminiSettings:
     defaults = dict(api_key="test-api-key", model="gemini-2.0-flash", temperature=0.7, max_output_tokens=4096, timeout=60)
     defaults.update(overrides)
     return GeminiSettings(**defaults)
+
+
+def _anthropic_settings(**overrides) -> AnthropicSettings:
+    defaults = dict(api_key="test-anthropic-key", model="claude-sonnet-4-20250514", temperature=0.7, max_tokens=4096, timeout=60)
+    defaults.update(overrides)
+    return AnthropicSettings(**defaults)
 
 
 # ===================================================================
@@ -356,11 +362,223 @@ class TestFactory:
 
         settings = Settings()
         settings.gemini = _gemini_settings(api_key="")
+        settings.anthropic = _anthropic_settings(api_key="")
 
         providers = create_llm_providers(settings)
         assert "ollama" in providers
         assert "gemini" not in providers
+        assert "anthropic" not in providers
         assert isinstance(providers["ollama"], OllamaProvider)
+
+    def test_selects_anthropic_when_api_key_set(self):
+        from src.services.llm.anthropic_provider import AnthropicProvider
+        from src.services.llm.factory import create_llm_provider
+
+        settings = Settings()
+        settings.anthropic = _anthropic_settings(api_key="real-key")
+        settings.gemini = _gemini_settings(api_key="")
+
+        with patch("src.services.llm.factory.anthropic"):
+            provider = create_llm_provider(settings)
+        assert isinstance(provider, AnthropicProvider)
+
+    def test_anthropic_takes_priority_over_gemini(self):
+        from src.services.llm.anthropic_provider import AnthropicProvider
+        from src.services.llm.factory import create_llm_provider
+
+        settings = Settings()
+        settings.anthropic = _anthropic_settings(api_key="real-key")
+        settings.gemini = _gemini_settings(api_key="gemini-key")
+
+        with patch("src.services.llm.factory.anthropic"), patch("src.services.llm.factory.genai"):
+            provider = create_llm_provider(settings)
+        assert isinstance(provider, AnthropicProvider)
+
+    def test_multi_provider_includes_anthropic(self):
+        from src.services.llm.anthropic_provider import AnthropicProvider
+        from src.services.llm.factory import create_llm_providers
+
+        settings = Settings()
+        settings.anthropic = _anthropic_settings(api_key="real-key")
+        settings.gemini = _gemini_settings(api_key="gemini-key")
+
+        with patch("src.services.llm.factory.anthropic"), patch("src.services.llm.factory.genai"):
+            providers = create_llm_providers(settings)
+
+        assert "anthropic" in providers
+        assert "gemini" in providers
+        assert "ollama" in providers
+        assert isinstance(providers["anthropic"], AnthropicProvider)
+
+
+# ===================================================================
+# AnthropicProvider
+# ===================================================================
+
+
+class TestAnthropicProvider:
+    def _make_provider(self, settings=None):
+        from src.services.llm.anthropic_provider import AnthropicProvider
+
+        with patch("src.services.llm.anthropic_provider.anthropic"):
+            return AnthropicProvider(settings or _anthropic_settings())
+
+    @pytest.mark.asyncio
+    async def test_generate(self):
+        provider = self._make_provider()
+        mock_message = MagicMock()
+        mock_message.content = [MagicMock(text="Claude says hello", type="text")]
+        mock_message.model = "claude-sonnet-4-20250514"
+        mock_message.usage = MagicMock(input_tokens=10, output_tokens=25)
+        mock_message.stop_reason = "end_turn"
+        provider._client.messages.create = AsyncMock(return_value=mock_message)
+
+        result = await provider.generate("Hello")
+
+        assert result.text == "Claude says hello"
+        assert result.provider == "anthropic"
+        assert result.model == "claude-sonnet-4-20250514"
+        assert result.usage is not None
+        assert result.usage.prompt_tokens == 10
+        assert result.usage.completion_tokens == 25
+        assert result.usage.total_tokens == 35
+
+    @pytest.mark.asyncio
+    async def test_generate_with_overrides(self):
+        provider = self._make_provider()
+        mock_message = MagicMock()
+        mock_message.content = [MagicMock(text="ok", type="text")]
+        mock_message.model = "claude-opus-4-20250514"
+        mock_message.usage = MagicMock(input_tokens=5, output_tokens=1)
+        provider._client.messages.create = AsyncMock(return_value=mock_message)
+
+        result = await provider.generate("hi", model="claude-opus-4-20250514", temperature=0.1, max_tokens=100)
+
+        assert result.text == "ok"
+        call_kwargs = provider._client.messages.create.call_args.kwargs
+        assert call_kwargs["model"] == "claude-opus-4-20250514"
+        assert call_kwargs["temperature"] == 0.1
+        assert call_kwargs["max_tokens"] == 100
+
+    @pytest.mark.asyncio
+    async def test_generate_stream(self):
+        provider = self._make_provider()
+
+        # Mock the streaming context manager
+        mock_stream = MagicMock()
+
+        async def mock_text_stream():
+            for chunk in ["Hello", " from", " Claude"]:
+                yield chunk
+
+        mock_stream.text_stream = mock_text_stream()
+        mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
+        mock_stream.__aexit__ = AsyncMock(return_value=False)
+
+        provider._client.messages.stream = MagicMock(return_value=mock_stream)
+
+        collected = []
+        async for chunk in provider.generate_stream("test"):
+            collected.append(chunk)
+
+        assert collected == ["Hello", " from", " Claude"]
+
+    @pytest.mark.asyncio
+    async def test_health_check_healthy(self):
+        provider = self._make_provider()
+        # Mock a successful models list call
+        mock_model = MagicMock()
+        mock_model.id = "claude-sonnet-4-20250514"
+        mock_page = MagicMock()
+        mock_page.data = [mock_model]
+        provider._client.models.list = AsyncMock(return_value=mock_page)
+
+        status = await provider.health_check()
+        assert status.healthy is True
+        assert status.provider == "anthropic"
+
+    @pytest.mark.asyncio
+    async def test_health_check_auth_failure(self):
+        import anthropic as anthropic_module
+
+        provider = self._make_provider()
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.headers = {}
+        provider._client.models.list = AsyncMock(
+            side_effect=anthropic_module.AuthenticationError(
+                message="Invalid API key", response=mock_response, body=None
+            )
+        )
+
+        status = await provider.health_check()
+        assert status.healthy is False
+
+    def test_missing_api_key_raises(self):
+        from src.services.llm.anthropic_provider import AnthropicProvider
+
+        with pytest.raises(ConfigurationError, match="ANTHROPIC__API_KEY"):
+            AnthropicProvider(_anthropic_settings(api_key=""))
+
+    def test_get_langchain_model(self):
+        provider = self._make_provider()
+        with patch("src.services.llm.anthropic_provider.ChatAnthropic") as mock_chat:
+            model = provider.get_langchain_model(temperature=0.3)
+            mock_chat.assert_called_once()
+            kwargs = mock_chat.call_args.kwargs
+            assert kwargs["temperature"] == 0.3
+            assert model is mock_chat.return_value
+
+    @pytest.mark.asyncio
+    async def test_generate_timeout(self):
+        import anthropic as anthropic_module
+
+        provider = self._make_provider()
+        mock_response = MagicMock()
+        mock_response.status_code = 408
+        mock_response.headers = {}
+        provider._client.messages.create = AsyncMock(
+            side_effect=anthropic_module.APITimeoutError(request=MagicMock())
+        )
+
+        with pytest.raises(LLMTimeoutError):
+            await provider.generate("slow prompt")
+
+    @pytest.mark.asyncio
+    async def test_generate_auth_error(self):
+        import anthropic as anthropic_module
+
+        provider = self._make_provider()
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.headers = {}
+        provider._client.messages.create = AsyncMock(
+            side_effect=anthropic_module.AuthenticationError(
+                message="Invalid API key", response=mock_response, body=None
+            )
+        )
+
+        with pytest.raises(ConfigurationError):
+            await provider.generate("test")
+
+    @pytest.mark.asyncio
+    async def test_generate_connection_error(self):
+        import anthropic as anthropic_module
+
+        provider = self._make_provider()
+        provider._client.messages.create = AsyncMock(
+            side_effect=anthropic_module.APIConnectionError(request=MagicMock())
+        )
+
+        with pytest.raises(LLMConnectionError):
+            await provider.generate("test")
+
+    @pytest.mark.asyncio
+    async def test_close(self):
+        provider = self._make_provider()
+        provider._client.close = AsyncMock()
+        await provider.close()
+        provider._client.close.assert_called_once()
 
 
 # ===================================================================

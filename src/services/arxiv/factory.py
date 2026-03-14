@@ -16,7 +16,7 @@ def make_arxiv_client() -> ArxivClient:
         base_url=settings.arxiv.base_url,
         rate_limit_delay=settings.arxiv.rate_limit_delay,
         max_results=settings.arxiv.max_results,
-        search_category=settings.arxiv.category,
+        search_category=settings.arxiv.categories,
         timeout=settings.arxiv.timeout,
         max_retries=settings.arxiv.max_retries,
     )

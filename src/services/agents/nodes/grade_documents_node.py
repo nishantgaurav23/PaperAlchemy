@@ -104,14 +104,14 @@ async def ainvoke_grade_documents_step(
     )
     structured_llm = llm.with_structured_output(GradeDocuments)
 
-    grading_results: list[GradingResult] = []
-    relevant_sources: list[SourceItem] = []
+    # Grade all documents in parallel for speed
+    import asyncio
 
-    for source in sources:
-        result = await _grade_single_document(source, query, structured_llm)
-        grading_results.append(result)
-        if result.is_relevant:
-            relevant_sources.append(source)
+    grading_tasks = [_grade_single_document(source, query, structured_llm) for source in sources]
+    grading_results: list[GradingResult] = list(await asyncio.gather(*grading_tasks))
+    relevant_sources: list[SourceItem] = [
+        source for source, result in zip(sources, grading_results, strict=True) if result.is_relevant
+    ]
 
     logger.info(
         "Grading complete: %d/%d documents relevant",
@@ -125,28 +125,44 @@ async def ainvoke_grade_documents_step(
 def continue_after_grading(
     state: AgentState,
     context: AgentContext,
-) -> Literal["generate", "rewrite"]:
+) -> Literal["generate", "rewrite", "web_search"]:
     """Conditional edge: route based on grading results.
 
     Args:
-        state: Current agent state with relevant_sources and retrieval_attempts.
-        context: Runtime context with max_retrieval_attempts.
+        state: Current agent state with relevant_sources, sources, and retrieval_attempts.
+        context: Runtime context with max_retrieval_attempts, web_search_service.
 
     Returns:
-        "generate" if relevant sources exist or retries exhausted;
-        "rewrite" if no relevant sources and retries remain.
+        "generate" if relevant sources exist;
+        "rewrite" if some docs were retrieved but none relevant, and retries remain;
+        "web_search" if retrieval returned nothing (infra down / empty KB) or retries exhausted;
+        "generate" as final fallback (no sources message).
     """
     relevant_sources = state.get("relevant_sources", [])
+    retrieved_sources = state.get("sources", [])
     retrieval_attempts = state.get("retrieval_attempts", 0)
     max_attempts = context.max_retrieval_attempts
+    has_web_search = getattr(context, "web_search_service", None) is not None
 
     if relevant_sources:
         logger.info("Routing to generate: %d relevant sources found", len(relevant_sources))
         return "generate"
 
-    if retrieval_attempts >= max_attempts:
-        logger.warning("Routing to generate: retries exhausted (%d/%d)", retrieval_attempts, max_attempts)
-        return "generate"
+    # If retrieval returned ZERO docs (infra down, empty KB), rewriting won't help.
+    # Skip straight to web search instead of wasting LLM calls on rewrites.
+    if not retrieved_sources and has_web_search:
+        logger.info("Routing to web_search: retrieval returned 0 docs, rewriting won't help")
+        return "web_search"
 
-    logger.info("Routing to rewrite: no relevant sources, attempt %d/%d", retrieval_attempts, max_attempts)
-    return "rewrite"
+    # Docs were retrieved but none graded relevant — rewrite may help
+    if retrieval_attempts < max_attempts:
+        logger.info("Routing to rewrite: no relevant sources, attempt %d/%d", retrieval_attempts, max_attempts)
+        return "rewrite"
+
+    # Retries exhausted — try web search if available
+    if has_web_search:
+        logger.info("Routing to web_search: KB retries exhausted, falling back to web")
+        return "web_search"
+
+    logger.warning("Routing to generate: retries exhausted, no web search available (%d/%d)", retrieval_attempts, max_attempts)
+    return "generate"

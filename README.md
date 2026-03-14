@@ -5,26 +5,35 @@
 <h1 align="center">PaperAlchemy</h1>
 
 <p align="center">
-  <strong>AI Research Assistant that answers questions with real paper citations</strong>
+  <strong>AI Research Assistant that answers questions grounded in real papers — every answer cited, every source linked</strong>
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> &bull;
-  <a href="#tech-stack">Tech Stack</a> &bull;
+  <a href="#what-is-paperalchemy">About</a> &bull;
+  <a href="#key-capabilities">Capabilities</a> &bull;
+  <a href="#tech-stack">Stack</a> &bull;
   <a href="#architecture">Architecture</a> &bull;
-  <a href="#getting-started">Getting Started</a> &bull;
-  <a href="#api-endpoints">API</a> &bull;
-  <a href="#development">Development</a> &bull;
+  <a href="#getting-started">Setup</a> &bull;
+  <a href="#api-reference">API</a> &bull;
+  <a href="#development">Dev</a> &bull;
   <a href="#roadmap">Roadmap</a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white" alt="Python 3.12"/>
+  <img src="https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white" alt="Python"/>
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white" alt="FastAPI"/>
-  <img src="https://img.shields.io/badge/Next.js-15-black?logo=next.js&logoColor=white" alt="Next.js 15"/>
-  <img src="https://img.shields.io/badge/LangGraph-0.2-orange" alt="LangGraph"/>
+  <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white" alt="Next.js"/>
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="React"/>
+  <img src="https://img.shields.io/badge/LangGraph-0.2+-orange" alt="LangGraph"/>
   <img src="https://img.shields.io/badge/OpenSearch-2.19-005EB8?logo=opensearch&logoColor=white" alt="OpenSearch"/>
   <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL"/>
+  <img src="https://img.shields.io/badge/Tests-1845-brightgreen" alt="Tests"/>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Gemini-Research%20QA-4285F4?logo=googlegemini&logoColor=white" alt="Gemini"/>
+  <img src="https://img.shields.io/badge/Claude-Code%20Gen-CC785C?logo=anthropic&logoColor=white" alt="Claude"/>
+  <img src="https://img.shields.io/badge/Ollama-Local%20Dev-lightgrey" alt="Ollama"/>
   <img src="https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white" alt="Redis"/>
   <img src="https://img.shields.io/badge/GCP-Cloud%20Run-4285F4?logo=googlecloud&logoColor=white" alt="GCP"/>
 </p>
@@ -33,20 +42,21 @@
 
 ## What is PaperAlchemy?
 
-PaperAlchemy is **not** a generic chatbot. It's a research assistant that:
+PaperAlchemy is **not** a generic chatbot. It is a research assistant built from scratch with spec-driven TDD (67 specs, 1,845 tests) that:
 
-- **Always searches its knowledge base** before answering any research question
-- **Always cites papers** with title, authors, year, and arXiv link
-- **Uses agentic RAG** with LangGraph state-machine agents and mandatory tool calls
-- **Admits knowledge gaps** honestly when no relevant papers are found
+- **Searches multiple sources in parallel** — knowledge base, arXiv API, and web (DuckDuckGo) simultaneously
+- **Always cites papers** with title, authors, year, and arXiv link — no hallucinated references
+- **Uses agentic RAG** — LangGraph agents with a 4-stage retrieval pipeline (query expansion → hybrid search → re-ranking → parent expansion)
+- **Routes to the right LLM** — Gemini for research, Claude for code, Ollama for local dev, with automatic fallback
+- **Admits knowledge gaps** — when no relevant papers exist in the knowledge base, it says so honestly
 
 ```
-You: "What is a transformer?"
+You: "What are the key innovations in transformer architectures?"
 
 PaperAlchemy:
-  Transformers are a neural network architecture based on self-attention
-  mechanisms, introduced by Vaswani et al. [1]. The key innovation is
-  replacing recurrence with multi-head attention...
+  Transformers replaced recurrence with multi-head self-attention,
+  enabling parallel sequence processing [1]. BERT later introduced
+  bidirectional pre-training for transfer learning [2]...
 
   Sources:
   1. Attention Is All You Need — Vaswani et al., 2017
@@ -57,70 +67,102 @@ PaperAlchemy:
 
 ---
 
-## Features
+## Key Capabilities
 
-### Research Assistant
-- **Citation-first answers** — every response includes inline `[1][2]` references with arXiv links
-- **Conversational follow-ups** — ask "What about its limitations?" and it re-retrieves with context
-- **Session memory** — Redis-backed conversation history with 24h TTL
+### Citation-First Research Q&A
+Every response includes inline `[1][2]` references linked to arXiv. The system uses multi-source retrieval (KB + arXiv API + DuckDuckGo) in parallel, with conversational follow-ups that resolve coreference and re-retrieve context every turn. Session memory is Redis-backed with a sliding window of 20 messages.
 
-### Advanced RAG Pipeline (4 Stages)
+### 4-Stage Advanced RAG Pipeline
 
-| Stage | What it does | Output |
-|-------|-------------|--------|
+| Stage | Method | Result |
+|-------|--------|--------|
 | **Query Expansion** | Multi-query (3-5 variations) + HyDE (hypothetical doc embeddings) | Expanded query set |
-| **Hybrid Retrieval** | BM25 + KNN vector search + RRF fusion (parallel per query) | Top 20 chunks |
-| **Re-ranking** | Cross-encoder (ms-marco-MiniLM-L-12-v2) re-scores candidates | Top 5 most relevant |
-| **Parent Expansion** | Retrieves full parent sections for richer LLM context | 5 context windows |
+| **Hybrid Retrieval** | BM25 + KNN vector search + RRF fusion | Top 20 chunks |
+| **Re-ranking** | Cross-encoder (ms-marco-MiniLM-L-12-v2) | Top 5 most relevant |
+| **Parent Expansion** | Retrieve full parent sections for richer context | 5 context windows |
 
-### Multi-Agent System (LangGraph)
-- **Guardrail Node** — filters off-topic queries (domain relevance scoring)
-- **Retrieve Node** — mandatory tool calls to hybrid search (never answers from memory)
-- **Grade Documents Node** — binary relevance scoring of retrieved papers
-- **Rewrite Query Node** — up to 3 retries with synonym expansion and refinement
-- **Generate Answer Node** — citation-enforcing generation with source validation
-- **Specialized Agents** — Summarizer, Fact-Checker, Trend Analyzer, Citation Tracker
+### Agentic RAG (LangGraph)
 
-### Knowledge Base
-- **Automated ingestion** via Apache Airflow DAGs (Mon-Fri 6am UTC)
-- **arXiv API integration** with rate limiting and retry
-- **Section-aware PDF parsing** via Docling (30-page limit)
-- **Parent-child chunking** — small chunks (200w) for precision, parent sections (600w) for context
+```
+Query → [Guardrail] → [Retrieve] → [Grade Documents]
+                             ↑              |
+                             |         relevant?
+                        [Rewrite] ← no (max 3)
+                                              |
+                        [Web Search] ← KB insufficient
+                                              |
+                                             yes
+                                              ↓
+                                     [Generate Answer]
+                                     with citations [1][2]
+```
 
-### Modern Frontend (Next.js 15)
-- **Search** — hybrid search with category filters, sorting, and pagination
-- **Chat** — SSE streaming chatbot with follow-up Q&A and citation rendering
-- **Upload & Analyze** — drag-and-drop PDF upload with AI analysis
-- **Dashboard** — research trends, hot papers, category breakdown
-- **Collections** — reading lists, paper organization
-- **Export** — BibTeX, Markdown, clipboard
+Nodes: Guardrail (domain scoring 0-100), Retrieve, Grade (binary relevance), Rewrite (synonym expansion), Web Search (DuckDuckGo fallback), Generate (citation-enforcing). Specialized agents: Summarizer, Fact-Checker, Trend Analyzer, Citation Tracker.
 
-### Additional
-- **Telegram Bot** — mobile-first research assistant (`/ask`, `/search`, paper alerts)
-- **Evaluation Framework** — RAGAS metrics + LLM judges + human eval UI
-- **Observability** — Langfuse v3 per-node tracing with cost tracking
-- **GCP Cloud Run** — scale-to-zero deployment ($0-7/mo)
+### Paper Upload & AI Analysis
+Upload PDFs (50MB limit, magic byte validation) through a full pipeline: parse → chunk → embed → index → analyze. Get structured AI summaries, key highlights, methodology deep-dives, and side-by-side comparison of 2-5 papers.
+
+### Multi-Provider LLM Routing
+
+| Provider | Use Case | Features |
+|----------|----------|----------|
+| **Google Gemini** | Research Q&A, summarization | `google.genai` SDK, configurable model |
+| **Anthropic Claude** | Code generation | `anthropic.AsyncAnthropic`, Opus/Sonnet/Haiku |
+| **Ollama** | Local development | No API key, free inference |
+
+Task-based routing across 6 task types (RESEARCH_QA, CODE_GENERATION, SUMMARIZATION, GRADING, QUERY_REWRITE, GENERAL) with configurable fallback chains and per-provider cost tracking.
+
+### Modern Frontend (Next.js 16 + React 19)
+
+| Area | Features |
+|------|----------|
+| **Landing** | Animated mesh gradient hero, feature grid, scroll-triggered stats, use cases |
+| **Search** | Dual-mode (KB + arXiv), autocomplete, category chips, filter pills, shimmer skeletons |
+| **Chat** | SSE streaming, Markdown/GFM/syntax highlighting, Mermaid diagrams, follow-up chips, citation cards |
+| **Upload** | Drag-and-drop, progress tracking, tabbed analysis results |
+| **Papers** | Full sections view, on-demand AI analysis, APA citation copy, filterable list |
+| **Dashboard** | Stats cards, category/timeline charts, hot papers, trending topics |
+| **Navigation** | Sidebar + Cmd+K command palette + keyboard shortcuts + mobile bottom nav |
+| **Design** | Indigo/violet oklch palette, glassmorphism, Inter + Plus Jakarta Sans, 6-tier shadows |
+| **Mobile** | Bottom nav, swipe gestures, pull-to-refresh, 44px touch targets, clamp() typography |
+| **Auth** | Login/signup/forgot-password (infrastructure ready), Zustand store, JWT interceptor |
+
+### Knowledge Base & Ingestion
+Automated arXiv ingestion via Airflow DAGs (Mon-Fri 6am UTC). Section-aware PDF parsing with Docling + PyMuPDF fallback. Parent-child chunking (200w chunks for precision, 600w parents for context).
+
+### Database & Migrations
+PostgreSQL 16 with async SQLAlchemy 2.0, Alembic migrations, UUID PKs, JSONB columns. Paper and Collection models with many-to-many relationships.
+
+### Testing: 1,845 Tests
+
+| Suite | Count | Framework |
+|-------|-------|-----------|
+| Backend | ~1,147 | pytest + pytest-asyncio |
+| Frontend | ~698 | Vitest + React Testing Library |
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| **Backend** | Python 3.12 + FastAPI | Async, auto-docs, SSE streaming |
-| **Frontend** | Next.js 15 + TypeScript + Tailwind + shadcn/ui | App Router, SSR, streaming |
-| **Database** | PostgreSQL 16 + SQLAlchemy 2.0 | Async ORM, JSONB support |
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Backend** | Python 3.12 + FastAPI | Async API, auto-docs, SSE streaming |
+| **Frontend** | Next.js 16 + React 19 + TypeScript + Tailwind v4 + shadcn/ui | App Router, RSC, streaming |
+| **Database** | PostgreSQL 16 + SQLAlchemy 2.0 + Alembic | Async ORM, migrations, JSONB |
 | **Search** | OpenSearch 2.19 | BM25 + KNN hybrid in one engine |
 | **Embeddings** | Jina AI v3 (1024-dim) | Free API, high quality |
-| **Re-ranking** | Cross-encoder (ms-marco-MiniLM-L-12-v2) | Local, second-stage scoring |
-| **LLM (local)** | Ollama (llama3.2) | Free local inference |
-| **LLM (cloud)** | Google Gemini 3 Flash | Best cost/perf for research |
+| **Re-ranking** | Cross-encoder (ms-marco-MiniLM-L-12-v2) | Local second-stage scoring |
+| **LLM (cloud)** | Google Gemini (gemini-2.5-flash) | Research Q&A, summarization |
+| **LLM (code)** | Anthropic Claude (claude-sonnet-4) | Code generation |
+| **LLM (local)** | Ollama (llama3.2:1b) | Free local inference |
 | **Agents** | LangGraph 0.2+ | State-machine agent graphs |
-| **Caching** | Redis 7 | Sub-ms response cache, 24h TTL |
-| **PDF Parsing** | Docling 2.43+ | Section-aware scientific PDFs |
+| **Web Search** | DuckDuckGo (ddgs) | Fallback when KB insufficient |
+| **Caching** | Redis 7 | Response + session cache, 24h TTL |
+| **PDF Parsing** | Docling 2.43+ / PyMuPDF | Section-aware scientific PDFs |
 | **Observability** | Langfuse v3 | LLM tracing + cost tracking |
 | **Orchestration** | Apache Airflow 2.10 | Scheduled data ingestion |
-| **Testing** | pytest + Vitest | Backend + frontend TDD |
+| **Object Storage** | MinIO | PDFs, artifacts (dev) |
+| **Testing** | pytest (1,147) + Vitest (698) | Full-stack TDD |
 | **Cloud** | GCP Cloud Run | Scale to zero, free tier |
 
 ---
@@ -134,31 +176,36 @@ PaperAlchemy:
 ### System Layers
 
 ```
-User Layer        Next.js 15 frontend + Telegram bot
+Frontend          Next.js 16 + React 19 (TypeScript, Tailwind v4, shadcn/ui)
     |
     | HTTPS / SSE
     v
-API Gateway       FastAPI :8000 — routers, middleware, DI, validation
+API Gateway       FastAPI :8000 — 8 routers, DI, validation, middleware
     |
     v
-Service Layer     LangGraph agents + RAG chain + core services
+Service Layer     Agentic RAG (LangGraph) + 4-stage retrieval + 3 LLM providers
     |
     v
-Data Layer        PostgreSQL + OpenSearch + Redis + Airflow
+Data Layer        PostgreSQL · OpenSearch · Redis · MinIO · Jina Embeddings
+    |
+    v
+External          arXiv API · DuckDuckGo · Airflow · Langfuse · GCP
 ```
 
-### Agent Flow (Every Research Question)
+### RAG Flow (Every Research Question)
 
 ```
-Query --> [Guardrail] --> [Retrieve (mandatory tool call)] --> [Grade Docs]
-                               ^                                  |
-                               |                             relevant?
-                          [Rewrite] <-- no (max 3) --------------|
-                                                                  |
-                                                                 yes
-                                                                  v
-                                                         [Generate Answer]
-                                                         with citations [1][2]
+Query → [Multi-Source Parallel Retrieval]
+              |           |            |
+              v           v            v
+          [KB Search]  [arXiv API]  [Web Search]
+              |           |            |
+              +-----merge + dedupe-----+
+                          |
+                    [Re-rank top 5]
+                          |
+                   [Generate Answer]
+                   with citations [1][2]
 ```
 
 ---
@@ -166,38 +213,32 @@ Query --> [Guardrail] --> [Retrieve (mandatory tool call)] --> [Grade Docs]
 ## Getting Started
 
 ### Prerequisites
-
-- **Docker Desktop** (4GB+ RAM allocated)
+- **Docker Desktop** (4GB+ RAM)
 - **Python 3.12+** with [UV](https://docs.astral.sh/uv/)
 - **Node.js 20+** with [pnpm](https://pnpm.io/)
-- **Ollama** installed locally (for dev LLM)
+- **Ollama** (for local LLM)
 
 ### Quick Start
 
 ```bash
-# 1. Clone
+# 1. Clone & configure
 git clone https://github.com/nishantgaurav23/PaperAlchemy.git
 cd PaperAlchemy
+cp .env.example .env          # Add your JINA_API_KEY, GEMINI__API_KEY
 
-# 2. Configure
-cp .env.example .env    # Edit with your API keys (JINA_API_KEY, GEMINI__API_KEY)
+# 2. Start infrastructure
+make start                     # PostgreSQL, OpenSearch, Redis, MinIO
+make health                    # Wait for healthy services
 
-# 3. Start infrastructure
-make start              # PostgreSQL, OpenSearch, Redis
+# 3. Setup backend
+ollama pull llama3.2           # First time only
+make setup                     # uv sync
+make db-upgrade                # Alembic migrations
 
-# 4. Wait for healthy services
-make health
+# 4. Start API
+make dev                       # uvicorn on :8000
 
-# 5. Pull Ollama model (first time)
-ollama pull llama3.2
-
-# 6. Install Python deps
-make setup              # uv sync
-
-# 7. Start API server
-make dev                # uvicorn on :8000
-
-# 8. Start frontend (new terminal)
+# 5. Start frontend (new terminal)
 cd frontend && pnpm install && pnpm dev   # Next.js on :3000
 ```
 
@@ -205,8 +246,8 @@ cd frontend && pnpm install && pnpm dev   # Next.js on :3000
 
 | Service | URL |
 |---------|-----|
-| API (Swagger docs) | http://localhost:8000/docs |
 | Frontend | http://localhost:3000 |
+| API Docs (Swagger) | http://localhost:8000/docs |
 | OpenSearch Dashboards | http://localhost:5602 |
 | Airflow | http://localhost:8080 |
 | pgAdmin | http://localhost:5050 |
@@ -214,134 +255,183 @@ cd frontend && pnpm install && pnpm dev   # Next.js on :3000
 
 ---
 
-## API Endpoints
+## API Reference
 
+### Health
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/health` | Health check |
-| `POST` | `/api/v1/search` | Hybrid search (BM25 + KNN + RRF) |
-| `POST` | `/api/v1/ask` | RAG question answering (JSON) |
-| `POST` | `/api/v1/ask/stream` | Streaming RAG (SSE) |
-| `POST` | `/api/v1/chat` | Conversational chat with follow-ups (SSE) |
-| `POST` | `/api/v1/ingest/fetch` | Trigger paper ingestion |
-| `POST` | `/api/v1/ingest/index` | Index papers into OpenSearch |
-| `GET` | `/api/v1/papers` | List papers |
-| `GET` | `/api/v1/papers/{id}` | Paper detail |
+| `GET` | `/ping` | Health check with version |
 
-Full API docs available at `/docs` when running.
+### Search
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/search` | Hybrid search (BM25 + KNN + RRF) |
+| `POST` | `/api/v1/search/arxiv` | Live arXiv API search |
+| `GET` | `/api/v1/search/health` | OpenSearch health check |
+
+### Research Q&A
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/ask` | Single-turn question (JSON or SSE) |
+
+### Chat
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/chat` | Multi-turn with session management |
+| `GET` | `/api/v1/chat/sessions/{id}/history` | Conversation history |
+| `DELETE` | `/api/v1/chat/sessions/{id}` | Clear session |
+
+### Papers
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/papers` | List (filter by query, category) |
+| `GET` | `/api/v1/papers/{id}` | Get by UUID |
+| `GET` | `/api/v1/papers/by-arxiv/{arxiv_id}` | Get by arXiv ID |
+
+### Upload & Analysis
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/upload` | PDF → parse → chunk → embed → index → analyze |
+| `POST` | `/api/v1/papers/{id}/summary` | AI summary |
+| `POST` | `/api/v1/papers/{id}/highlights` | Key highlights |
+| `POST` | `/api/v1/papers/{id}/methodology` | Methodology analysis |
+| `POST` | `/api/v1/papers/compare` | Compare 2-5 papers |
+
+### Ingestion
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/ingest/fetch` | Fetch from arXiv → full pipeline |
+| `POST` | `/api/v1/ingest/reparse` | Re-parse pending/failed papers |
+
+### Collections
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/collections` | List collections |
+| `POST` | `/api/v1/collections` | Create collection |
+| `GET/PUT/DELETE` | `/api/v1/collections/{id}` | CRUD |
+| `POST` | `/api/v1/collections/{id}/papers` | Add paper |
+| `DELETE` | `/api/v1/collections/{id}/papers/{paper_id}` | Remove paper |
+
+Interactive docs at `/docs` when running.
 
 ---
 
 ## Development
 
-### Makefile Commands
+### Commands
 
 ```bash
-make start      # Start Docker services (PostgreSQL, OpenSearch, Redis)
-make stop       # Stop Docker services
-make dev        # Start API server (hot reload)
-make setup      # Install Python dependencies (uv sync)
-make test       # Run all tests (pytest)
-make test-cov   # Tests with coverage report
-make lint       # Lint + type check (ruff)
-make format     # Format code (ruff format)
-make health     # Health check all services
-make logs       # Tail service logs
-make clean      # Remove containers + volumes + caches
+make start          # Start Docker services
+make stop           # Stop Docker services
+make dev            # API server (hot reload)
+make setup          # Install Python deps (uv sync)
+make test           # Run all backend tests
+make test-cov       # Tests with coverage report
+make lint           # Ruff lint + check
+make format         # Ruff format
+make health         # Health check services
+make logs           # Tail service logs
+make clean          # Remove containers + volumes
+make db-migrate     # Generate Alembic migration
+make db-upgrade     # Apply migrations
+make db-downgrade   # Rollback last migration
 ```
 
 ### Spec-Driven Development
 
-Every feature is built through a spec lifecycle:
+Every feature follows a spec lifecycle with TDD:
 
 ```
-/create-spec S{x}.{y} {slug}     -->  spec.md + checklist.md
-/check-spec-deps S{x}.{y}        -->  verify prerequisites
-/implement-spec S{x}.{y}         -->  TDD: Red -> Green -> Refactor
-/verify-spec S{x}.{y}            -->  audit + notebook verification
+/start-spec-dev S{x}.{y} {slug}    # Full: create → deps → implement → verify
+/create-spec S{x}.{y} {slug}       # Generate spec.md + checklist.md
+/check-spec-deps S{x}.{y}          # Verify prerequisites
+/implement-spec S{x}.{y}           # TDD: Red → Green → Refactor
+/verify-spec S{x}.{y}              # Audit + test verification
 ```
 
-Or run the full lifecycle at once:
-```
-/start-spec-dev S{x}.{y} {slug}  -->  create -> deps -> implement -> verify
-```
-
-### Testing
+### Running Tests
 
 ```bash
-# Backend
-pytest tests/ -v                        # All tests
-pytest tests/unit/ -v                   # Unit tests only
-pytest tests/unit/test_rag_chain.py -v  # Specific test
+# Backend (~1,147 tests)
+pytest tests/ -v
+pytest tests/unit/ -v
+pytest tests/unit/test_rag_chain.py -v
 
-# Frontend
-cd frontend && pnpm test               # Vitest
+# Frontend (~698 tests)
+cd frontend && pnpm test
 ```
 
 ### Project Structure
 
 ```
 PaperAlchemy/
-├── src/                     # Python backend
-│   ├── main.py              # FastAPI app
-│   ├── config.py            # Pydantic settings
-│   ├── routers/             # API endpoints
-│   ├── models/              # SQLAlchemy ORM
-│   ├── repositories/        # Data access
-│   ├── schemas/             # Pydantic models
+├── src/                         # Python backend
+│   ├── main.py                  # FastAPI app with lifespan
+│   ├── config.py                # 15+ Pydantic settings classes
+│   ├── dependency.py            # Annotated[] DI singletons
+│   ├── routers/                 # search, chat, upload, analysis, papers, collections, ingest
+│   ├── models/                  # SQLAlchemy ORM (Paper, Collection)
+│   ├── repositories/            # Data access layer
+│   ├── schemas/                 # Pydantic request/response models
 │   └── services/
-│       ├── agents/          # LangGraph agentic RAG
-│       │   ├── nodes/       # Guardrail, Retrieve, Grade, Rewrite, Generate
-│       │   └── specialized/ # Summarizer, Fact-Checker, Trend, Citation
-│       ├── rag/             # RAG chain + citation enforcement
-│       ├── retrieval/       # HyDE, multi-query, pipeline
-│       ├── reranking/       # Cross-encoder re-ranking
-│       ├── embeddings/      # Jina AI client
-│       ├── llm/             # Ollama + Gemini providers
-│       ├── opensearch/      # Search client + queries
-│       ├── chat/            # Conversation memory + follow-up
-│       ├── cache/           # Redis caching
-│       ├── arxiv/           # arXiv API client
-│       ├── pdf_parser/      # Docling parser
-│       └── indexing/        # Text chunking + parent-child
-├── frontend/                # Next.js 15 app
+│       ├── agents/              # LangGraph agentic RAG + specialized agents
+│       ├── rag/                 # Multi-source RAG chain + citation enforcement
+│       ├── retrieval/           # HyDE, multi-query, unified pipeline
+│       ├── llm/                 # Gemini + Claude + Ollama + LLMRouter
+│       ├── analysis/            # Summarizer, Highlights, Methodology, Comparator
+│       ├── chat/                # Session memory + follow-up detection
+│       ├── opensearch/          # Hybrid search client
+│       ├── upload/              # PDF upload orchestration
+│       ├── web_search/          # DuckDuckGo fallback
+│       ├── arxiv/               # arXiv API client
+│       ├── pdf_parser/          # Docling + PyMuPDF fallback
+│       ├── embeddings/          # Jina AI client
+│       ├── reranking/           # Cross-encoder
+│       ├── indexing/            # Text chunking + parent-child
+│       ├── cache/               # Redis caching
+│       └── langfuse/            # LLM tracing
+├── frontend/                    # Next.js 16 + React 19
 │   └── src/
-│       ├── app/             # App Router pages
-│       ├── components/      # UI components
-│       ├── lib/             # API client, utils
-│       └── types/           # TypeScript types
-├── tests/                   # pytest tests
-├── specs/                   # Spec definitions
-├── notebooks/specs/         # Per-spec Jupyter notebooks
-├── airflow/dags/            # Ingestion DAGs
-├── docs/                    # Architecture, ops guide
-├── compose.yml              # Docker services
-└── Makefile                 # Dev commands
+│       ├── app/                 # Pages: landing, search, chat, upload, papers, dashboard, auth
+│       ├── components/          # landing, layout, chat, search, paper, upload, dashboard, ui
+│       ├── lib/                 # API client, auth store, hooks
+│       └── types/               # TypeScript types
+├── tests/                       # ~1,147 pytest tests
+├── specs/                       # 67 spec folders (spec.md + checklist.md)
+├── alembic/                     # Database migrations
+├── airflow/dags/                # arXiv ingestion DAG
+├── docs/                        # Architecture SVG, ops guide, spec summaries
+├── compose.yml                  # Docker: PostgreSQL, OpenSearch, Redis, MinIO, Ollama, Airflow, Langfuse
+└── Makefile                     # Dev commands
 ```
 
 ---
 
 ## Roadmap
 
-**46/65 specs completed** across 12 phases:
+**67/168 specs completed** across 13 phases:
 
-| Phase | Name | Status |
-|-------|------|--------|
-| P1 | Project Foundation | **4/4 done** |
-| P2 | Backend Core | **4/4 done** |
-| P3 | Data Layer | **4/4 done** |
-| P4 | Search & Retrieval | **4/4 done** |
-| P4b | Advanced RAG | **5/5 done** |
-| P5 | RAG Pipeline | **5/5 done** |
-| P6 | Agent System | **8/8 done** |
-| P7 | Chatbot & Conversations | **3/3 done** |
-| P8 | Paper Upload & Analysis | 0/5 |
-| P9 | Frontend (Next.js) | **9/9 done** |
-| P10 | Evaluation Framework | 0/5 |
-| P11 | Observability & Deploy | 0/5 |
-| P12 | Telegram Bot | 0/4 |
+| Phase | Name | Specs | Status |
+|-------|------|-------|--------|
+| P1 | Project Foundation | 4/4 | Done |
+| P2 | Backend Core | 4/4 | Done |
+| P3 | Data Layer | 4/4 | Done |
+| P4 | Search & Retrieval | 4/4 | Done |
+| P4b | Advanced RAG | 5/5 | Done |
+| P5 | RAG Pipeline | 5/5 | Done |
+| P6 | Agent System | 8/8 | Done |
+| P7 | Chatbot & Conversations | 3/3 | Done |
+| P8 | Paper Upload & Analysis | 5/5 | Done |
+| P9 | Frontend (Next.js) | 9/9 | Done |
+| P9b | Platform Foundation | 7/7 | Done |
+| P5b | Extended LLM Providers | 2/2 | Done |
+| P13 | UI Enhancement & Design | 7/7 | Done |
+| P10 | Evaluation Framework | 0/5 | Next |
+| P11 | Observability & Deploy | 0/5 | Planned |
+| P12 | Telegram Bot | 0/4 | Planned |
+| P14–P23 | Advanced Features | 0/82 | Planned |
 
-See [roadmap.md](roadmap.md) for full details.
+Full details in [roadmap.md](roadmap.md).
 
 ---
 
@@ -358,43 +448,50 @@ POSTGRES__DB=paperalchemy
 # Search
 OPENSEARCH__HOST=http://localhost:9201
 
-# LLM
-OLLAMA__HOST=localhost
-OLLAMA__PORT=11434
-OLLAMA__MODEL=llama3.2
+# LLM — Multi-Provider
 GEMINI__API_KEY=your-key
-GEMINI__MODEL=gemini-3-flash
+GEMINI__MODEL=gemini-2.5-flash
+ANTHROPIC__API_KEY=your-key
+ANTHROPIC__MODEL=claude-sonnet-4-20250514
+OLLAMA__HOST=localhost
+OLLAMA__MODEL=llama3.2:1b
 
-# Embeddings
+# LLM Routing
+LLM_ROUTING__RESEARCH_QA=gemini
+LLM_ROUTING__CODE_GENERATION=anthropic
+LLM_ROUTING__FALLBACK_ORDER=gemini,anthropic,ollama
+
+# Embeddings & Re-ranking
 JINA_API_KEY=your-key
+RERANKER__MODEL=cross-encoder/ms-marco-MiniLM-L-12-v2
+RERANKER__TOP_K=5
 
 # Cache
 REDIS__HOST=localhost
 REDIS__PORT=6380
 REDIS__TTL_HOURS=24
-
-# Re-ranking
-RERANKER__MODEL=cross-encoder/ms-marco-MiniLM-L-12-v2
-RERANKER__TOP_K=5
 ```
+
+See `.env.example` for all options.
 
 ---
 
-## Deployment (GCP Cloud Run)
+## Deployment
 
 ```
-GCP Project
-├── Cloud Run (API)         — scale 0-3, 1GB RAM
-├── Cloud Run (Frontend)    — scale 0-2, 512MB RAM
-├── Cloud SQL (PostgreSQL)  — smallest instance
-├── Upstash Redis           — free tier
-├── Cloud Storage           — PDFs + exports
-└── Secret Manager          — API keys, DB creds
+GCP Cloud Run
+├── Cloud Run (API)          scale 0→3, 1GB RAM
+├── Cloud Run (Frontend)     scale 0→2, 512MB RAM
+├── Cloud SQL (PostgreSQL)   smallest instance
+├── Upstash Redis            free tier
+├── Cloud Storage            PDFs, artifacts (replaces MinIO)
+└── Secret Manager           API keys, credentials
 
-External:
-├── Gemini 3 Flash API      — free tier (15 RPM)
-├── Jina Embeddings API     — free tier (1M tokens/mo)
-└── OpenSearch              — self-hosted or Aiven
+External Services
+├── Gemini API               free tier (15 RPM)
+├── Anthropic Claude API     code generation
+├── Jina Embeddings API      free tier (1M tokens/mo)
+└── OpenSearch               self-hosted or Aiven
 ```
 
 **Estimated cost: $0-7/mo** with free tier usage.
@@ -403,15 +500,11 @@ External:
 
 ## Author
 
-**Nishant Gaurav** - [@nishantgaurav23](https://github.com/nishantgaurav23)
-
----
+**Nishant Gaurav** — [@nishantgaurav23](https://github.com/nishantgaurav23)
 
 ## Acknowledgments
 
 Architecture inspired by [arxiv-paper-curator](https://github.com/jamwithai/arxiv-paper-curator) by [Jam With AI](https://jamwithai.substack.com/). Rebuilt from scratch with spec-driven TDD, advanced RAG, and a modern Next.js frontend.
-
----
 
 ## License
 
@@ -420,7 +513,7 @@ This project is for educational and research purposes.
 ---
 
 <p align="center">
-  Built with FastAPI + LangGraph + Next.js + OpenSearch
-  <br/>
   <sub>Every answer grounded in real papers. Every citation linked to arXiv.</sub>
+  <br/>
+  <sub>Built with FastAPI + LangGraph + Next.js + OpenSearch + Gemini + Claude</sub>
 </p>

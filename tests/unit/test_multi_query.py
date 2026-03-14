@@ -63,19 +63,21 @@ def mock_embeddings_client():
 
 @pytest.fixture
 def mock_opensearch_client():
-    """Mock OpenSearch client with hybrid search (sync methods)."""
+    """Mock OpenSearch client with hybrid search (sync + async methods)."""
     client = MagicMock()
 
-    # Default: return 2 hits for any search
-    client.search_chunks_hybrid = MagicMock(
-        return_value={
-            "total": 2,
-            "hits": [
-                _make_hit("1706.03762", "1706.03762_chunk_0", "Attention Is All You Need", 0.95),
-                _make_hit("1810.04805", "1810.04805_chunk_0", "BERT", 0.88),
-            ],
-        }
-    )
+    _default_return = {
+        "total": 2,
+        "hits": [
+            _make_hit("1706.03762", "1706.03762_chunk_0", "Attention Is All You Need", 0.95),
+            _make_hit("1810.04805", "1810.04805_chunk_0", "BERT", 0.88),
+        ],
+    }
+
+    # Sync mock kept for backward compat
+    client.search_chunks_hybrid = MagicMock(return_value=_default_return)
+    # Async mock used by production code
+    client.asearch_chunks_hybrid = AsyncMock(return_value=_default_return)
     return client
 
 
@@ -212,7 +214,7 @@ class TestRetrieveWithMultiQuery:
         # Embeddings called for each variation
         assert mock_embeddings_client.embed_query.call_count == 3
         # OpenSearch called for each variation
-        assert mock_opensearch_client.search_chunks_hybrid.call_count == 3
+        assert mock_opensearch_client.asearch_chunks_hybrid.call_count == 3
 
     @pytest.mark.asyncio
     async def test_retrieve_with_multi_query_empty_query(self, multi_query_service):
@@ -224,12 +226,12 @@ class TestRetrieveWithMultiQuery:
     async def test_retrieve_with_multi_query_deduplication(self, multi_query_service, mock_opensearch_client):
         """Verify same chunk_id across queries is deduplicated."""
         # All 3 query variations return the same chunk
-        mock_opensearch_client.search_chunks_hybrid = MagicMock(
-            return_value={
-                "total": 1,
-                "hits": [_make_hit("1706.03762", "1706.03762_chunk_0", "Attention Is All You Need", 0.95)],
-            }
-        )
+        _dedup_return = {
+            "total": 1,
+            "hits": [_make_hit("1706.03762", "1706.03762_chunk_0", "Attention Is All You Need", 0.95)],
+        }
+        mock_opensearch_client.search_chunks_hybrid = MagicMock(return_value=_dedup_return)
+        mock_opensearch_client.asearch_chunks_hybrid = AsyncMock(return_value=_dedup_return)
 
         result = await multi_query_service.retrieve_with_multi_query("transformers")
 
@@ -277,6 +279,7 @@ class TestRetrieveWithMultiQuery:
                 }
 
         mock_opensearch_client.search_chunks_hybrid = MagicMock(side_effect=search_side_effect)
+        mock_opensearch_client.asearch_chunks_hybrid = AsyncMock(side_effect=search_side_effect)
 
         result = await multi_query_service.retrieve_with_multi_query("test query")
 
@@ -301,7 +304,7 @@ class TestRetrieveWithMultiQuery:
         assert result.generated_queries == ["What are transformers?"]
         # Only one search (for the original query)
         assert mock_embeddings_client.embed_query.call_count == 1
-        assert mock_opensearch_client.search_chunks_hybrid.call_count == 1
+        assert mock_opensearch_client.asearch_chunks_hybrid.call_count == 1
 
     @pytest.mark.asyncio
     async def test_retrieve_with_multi_query_partial_search_failure(
@@ -328,12 +331,12 @@ class TestRetrieveWithMultiQuery:
     async def test_retrieve_with_multi_query_respects_top_k(self, multi_query_service, mock_opensearch_client):
         """Verify top_k parameter limits final results."""
         # Return many hits per query
-        mock_opensearch_client.search_chunks_hybrid = MagicMock(
-            return_value={
-                "total": 5,
-                "hits": [_make_hit(f"paper_{i}", f"paper_{i}_chunk_0", f"Paper {i}", 0.9 - i * 0.1) for i in range(5)],
-            }
-        )
+        _topk_return = {
+            "total": 5,
+            "hits": [_make_hit(f"paper_{i}", f"paper_{i}_chunk_0", f"Paper {i}", 0.9 - i * 0.1) for i in range(5)],
+        }
+        mock_opensearch_client.search_chunks_hybrid = MagicMock(return_value=_topk_return)
+        mock_opensearch_client.asearch_chunks_hybrid = AsyncMock(return_value=_topk_return)
 
         result = await multi_query_service.retrieve_with_multi_query("test query", top_k=3)
 
@@ -343,6 +346,7 @@ class TestRetrieveWithMultiQuery:
     async def test_retrieve_with_multi_query_empty_results(self, multi_query_service, mock_opensearch_client):
         """Verify returns empty MultiQueryResult when no hits."""
         mock_opensearch_client.search_chunks_hybrid = MagicMock(return_value={"total": 0, "hits": []})
+        mock_opensearch_client.asearch_chunks_hybrid = AsyncMock(return_value={"total": 0, "hits": []})
 
         result = await multi_query_service.retrieve_with_multi_query("obscure topic")
 
@@ -355,7 +359,7 @@ class TestRetrieveWithMultiQuery:
         await multi_query_service.retrieve_with_multi_query("test query")
 
         # Each individual search should use top_k=20
-        call_kwargs = mock_opensearch_client.search_chunks_hybrid.call_args
+        call_kwargs = mock_opensearch_client.asearch_chunks_hybrid.call_args
         assert call_kwargs.kwargs.get("size") == 20
 
 

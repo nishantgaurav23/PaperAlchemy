@@ -76,6 +76,26 @@ class PaperRepository:
         await self.session.flush()
         return paper
 
+    async def update_analysis(
+        self,
+        paper_id: uuid.UUID,
+        summary: dict | None = None,
+        highlights: dict | None = None,
+        methodology: dict | None = None,
+    ) -> Paper | None:
+        """Update AI analysis fields on a paper."""
+        paper = await self.get_by_id(paper_id)
+        if paper is None:
+            return None
+        if summary is not None:
+            paper.summary = summary
+        if highlights is not None:
+            paper.highlights = highlights
+        if methodology is not None:
+            paper.methodology = methodology
+        await self.session.flush()
+        return paper
+
     async def delete(self, arxiv_id: str) -> bool:
         """Delete a paper by arXiv ID. Returns True if deleted."""
         paper = await self.get_by_arxiv_id(arxiv_id)

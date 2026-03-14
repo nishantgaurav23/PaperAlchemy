@@ -1,4 +1,4 @@
-"""PDF upload service: validate → parse → save → chunk → embed → index."""
+"""PDF upload service: validate → parse → save → chunk → embed → index → analyze."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from src.repositories.paper import PaperRepository
 from src.schemas.api.upload import UploadResponse
 from src.schemas.paper import PaperCreate
 from src.schemas.pdf import PDFContent
+from src.services.analysis import run_ai_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,34 @@ class UploadService:
     # FR-2: Metadata Extraction
     # ------------------------------------------------------------------
 
+    # Section titles to skip when looking for the paper title
+    _SKIP_SECTION_TITLES = {
+        "abstract", "copyright", "license", "acknowledgements",
+        "acknowledgments", "references", "bibliography",
+    }
+
+    @staticmethod
+    def _looks_like_boilerplate(text: str) -> bool:
+        """Detect copyright/license boilerplate or venue headers that shouldn't be used as a title."""
+        lower = text.lower().strip()
+        boilerplate_phrases = [
+            "permission", "granted", "copyright", "license", "redistribution",
+            "provided", "attribution", "hereby", "rights reserved",
+            "creative commons", "open access",
+        ]
+        if sum(1 for p in boilerplate_phrases if p in lower) >= 2:
+            return True
+
+        # Venue/conference headers common in academic PDFs (appear before the title)
+        venue_patterns = [
+            "published as", "accepted at", "accepted to", "to appear in",
+            "presented at", "proceedings of", "workshop on",
+            "conference on", "conference paper", "journal of",
+            "transactions on", "preprint", "under review",
+            "arxiv:", "arxiv preprint",
+        ]
+        return any(lower.startswith(p) or p in lower for p in venue_patterns)
+
     def _extract_metadata(self, content: PDFContent, filename: str) -> dict[str, Any]:
         """Extract title, abstract, and authors from parsed PDF content."""
         title = ""
@@ -83,15 +112,76 @@ class UploadService:
         if not abstract and content.raw_text:
             abstract = content.raw_text[:500].strip()
 
-        # Try to extract title from first section that isn't "Abstract"
-        for section in content.sections:
-            if section.title.lower().strip() != "abstract" and section.title.strip():
-                title = section.title.strip()
+        # Try to extract title from the first line(s) of raw text — most
+        # academic PDFs start with the paper title before anything else.
+        if content.raw_text:
+            first_lines = content.raw_text.strip().split("\n")
+            for line in first_lines[:5]:
+                candidate = line.strip()
+                # Skip empty lines and very long lines (likely body text)
+                if not candidate or len(candidate) > 200:
+                    continue
+                # Skip lines that look like boilerplate
+                if self._looks_like_boilerplate(candidate):
+                    continue
+                # A good title candidate: non-empty, reasonable length, not boilerplate
+                if len(candidate) >= 5:
+                    title = candidate
+                    break
+
+        # Fallback: try section titles (skip boilerplate sections)
+        if not title:
+            for section in content.sections:
+                section_title = section.title.strip()
+                if not section_title:
+                    continue
+                if section_title.lower() in self._SKIP_SECTION_TITLES:
+                    continue
+                if len(section_title) > 200:
+                    continue
+                if self._looks_like_boilerplate(section_title):
+                    continue
+                title = section_title
                 break
 
         # Fallback title: filename without extension
         if not title:
             title = Path(filename).stem
+
+        # Try to extract authors: look for lines between title and abstract
+        # in the raw text (common academic paper layout)
+        if content.raw_text and title:
+            raw_lines = content.raw_text.strip().split("\n")
+            title_found = False
+            for line in raw_lines[:20]:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if not title_found:
+                    if title in stripped:
+                        title_found = True
+                    continue
+                # Stop at abstract or section headings
+                lower = stripped.lower()
+                if lower.startswith("abstract") or lower.startswith("1 ") or lower.startswith("1."):
+                    break
+                # Skip very long lines (likely body text)
+                if len(stripped) > 300:
+                    break
+                # Lines between title and abstract are likely authors
+                # Split on common author separators
+                if "," in stripped or " and " in stripped.lower():
+                    # Clean up: remove affiliations (lines with numbers, @, university, etc.)
+                    if any(kw in stripped.lower() for kw in ["@", "university", "institute", "department", "lab"]):
+                        continue
+                    # Split authors by comma, "and", or similar
+                    raw_authors = stripped.replace(" and ", ", ").split(",")
+                    for a in raw_authors:
+                        name = a.strip().rstrip("*†‡§∥").strip()
+                        if name and len(name) > 2 and not name[0].isdigit():
+                            authors.append(name)
+                    if authors:
+                        break
 
         return {
             "title": title,
@@ -112,8 +202,9 @@ class UploadService:
         text_chunker: Any,
         embeddings_client: Any,
         opensearch_client: Any,
+        llm_provider: Any = None,
     ) -> UploadResponse:
-        """Full upload pipeline: validate → parse → save → chunk → embed → index."""
+        """Full upload pipeline: validate → parse → save → chunk → embed → index → analyze."""
         warnings: list[str] = []
         filename = file.filename or "unknown.pdf"
 
@@ -208,6 +299,23 @@ class UploadService:
 
         if not metadata["abstract"]:
             warnings.append("No abstract found in PDF")
+
+        # Step 6: AI Analysis (summary, highlights, methodology) — graceful degradation
+        if llm_provider is not None:
+            try:
+                analysis_results = await run_ai_analysis(
+                    paper_id=paper.id,
+                    paper_repo=paper_repo,
+                    session=session,
+                    llm_provider=llm_provider,
+                )
+                warnings.extend(analysis_results.get("warnings", []))
+                await session.commit()
+            except Exception as e:
+                logger.warning("AI analysis failed for %s: %s", upload_id, e)
+                warnings.append(f"AI analysis failed: {e}")
+        else:
+            warnings.append("LLM provider not available — AI analysis skipped")
 
         message = f"Paper uploaded successfully: {metadata['title']}"
         if warnings:

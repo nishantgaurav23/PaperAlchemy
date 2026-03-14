@@ -1,464 +1,439 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1400" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
   <defs>
-    <!-- Gradients -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0f0f23;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#1a1a3e;stop-opacity:1" />
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
     </linearGradient>
-    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    <linearGradient id="frontendGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0.10"/>
     </linearGradient>
-    <linearGradient id="frontendGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1e3a5f;stop-opacity:0.9" />
-      <stop offset="100%" style="stop-color:#2d1b69;stop-opacity:0.9" />
+    <linearGradient id="apiGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#14b8a6" stop-opacity="0.10"/>
     </linearGradient>
-    <linearGradient id="apiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1b4332;stop-opacity:0.9" />
-      <stop offset="100%" style="stop-color:#2d6a4f;stop-opacity:0.9" />
+    <linearGradient id="serviceGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#f97316" stop-opacity="0.08"/>
     </linearGradient>
-    <linearGradient id="serviceGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#5a1a00;stop-opacity:0.9" />
-      <stop offset="100%" style="stop-color:#7c3f00;stop-opacity:0.9" />
+    <linearGradient id="dataGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0.10"/>
     </linearGradient>
-    <linearGradient id="dataGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#4a1942;stop-opacity:0.9" />
-      <stop offset="100%" style="stop-color:#6b2fa0;stop-opacity:0.9" />
+    <linearGradient id="externalGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ec4899" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#f43f5e" stop-opacity="0.08"/>
     </linearGradient>
-    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:rgba(255,255,255,0.12)" />
-      <stop offset="100%" style="stop-color:rgba(255,255,255,0.04)" />
+    <linearGradient id="blueBox" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#2563eb" stop-opacity="0.15"/>
     </linearGradient>
-    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#667eea" />
-      <stop offset="100%" style="stop-color:#f093fb" />
+    <linearGradient id="greenBox" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#059669" stop-opacity="0.15"/>
     </linearGradient>
-
-    <!-- Glow filter -->
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-    <filter id="softShadow">
-      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="rgba(0,0,0,0.3)"/>
-    </filter>
-
-    <!-- Arrow marker -->
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#667eea"/>
+    <linearGradient id="amberBox" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#d97706" stop-opacity="0.15"/>
+    </linearGradient>
+    <linearGradient id="purpleBox" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#7c3aed" stop-opacity="0.15"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="50%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#f472b6"/>
+    </linearGradient>
+    <marker id="arrowDown" markerWidth="8" markerHeight="6" refX="4" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#475569"/>
     </marker>
-    <marker id="arrowheadGreen" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#52b788"/>
+    <marker id="arrowRight" markerWidth="8" markerHeight="6" refX="4" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#475569"/>
     </marker>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
   </defs>
 
   <!-- Background -->
-  <rect width="1200" height="1600" fill="url(#bgGrad)"/>
+  <rect width="1200" height="1400" fill="url(#bgGrad)"/>
 
-  <!-- Subtle grid pattern -->
-  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
-  </pattern>
-  <rect width="1200" height="1600" fill="url(#grid)"/>
+  <!-- Subtle grid dots -->
+  <defs>
+    <pattern id="dots" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="20" cy="20" r="0.8" fill="#94a3b8" opacity="0.06"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="1400" fill="url(#dots)"/>
 
-  <!-- ═══════════════════════════════════════ -->
-  <!-- TITLE -->
-  <!-- ═══════════════════════════════════════ -->
-  <rect x="50" y="30" width="1100" height="80" rx="16" fill="url(#headerGrad)" filter="url(#softShadow)"/>
-  <text x="600" y="62" text-anchor="middle" fill="white" font-size="28" font-weight="700" letter-spacing="2">
-    PAPERALCHEMY
-  </text>
-  <text x="600" y="90" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="14" letter-spacing="3">
-    AI RESEARCH ASSISTANT  &#x2022;  SYSTEM ARCHITECTURE
-  </text>
+  <!-- ==================== TITLE ==================== -->
+  <text x="600" y="52" text-anchor="middle" font-size="32" font-weight="700" fill="url(#titleGrad)" letter-spacing="1">PaperAlchemy Architecture</text>
+  <text x="600" y="76" text-anchor="middle" font-size="13" fill="#94a3b8" letter-spacing="0.5">AI Research Assistant -- Spec-Driven Full-Stack Platform</text>
 
-  <!-- ═══════════════════════════════════════ -->
-  <!-- LAYER 1: USER / FRONTEND LAYER -->
-  <!-- ═══════════════════════════════════════ -->
-  <rect x="50" y="140" width="1100" height="260" rx="16" fill="url(#frontendGrad)" stroke="rgba(102,126,234,0.4)" stroke-width="1.5" filter="url(#softShadow)"/>
+  <!-- ==================== STATS BOX ==================== -->
+  <rect x="935" y="24" width="240" height="62" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow)"/>
+  <text x="1055" y="44" text-anchor="middle" font-size="10" fill="#64748b" font-weight="600" letter-spacing="1.5">PROJECT METRICS</text>
+  <line x1="955" y1="50" x2="1155" y2="50" stroke="#334155" stroke-width="0.5"/>
+  <text x="975" y="67" font-size="11" fill="#60a5fa" font-weight="600">67 Specs</text>
+  <text x="1055" y="67" font-size="11" fill="#34d399" font-weight="600">13 Phases</text>
+  <text x="1130" y="67" font-size="11" fill="#fbbf24" font-weight="600">~1845 Tests</text>
+  <text x="975" y="81" font-size="9" fill="#475569">completed</text>
+  <text x="1055" y="81" font-size="9" fill="#475569">delivered</text>
+  <text x="1130" y="81" font-size="9" fill="#475569">passing</text>
 
-  <!-- Layer label -->
-  <rect x="70" y="150" width="160" height="28" rx="14" fill="rgba(102,126,234,0.6)"/>
-  <text x="150" y="169" text-anchor="middle" fill="white" font-size="12" font-weight="600" letter-spacing="1">USER LAYER</text>
+  <!-- ==================== LAYER 1: USER / FRONTEND ==================== -->
+  <g transform="translate(40, 100)">
+    <rect x="0" y="0" width="1120" height="200" rx="16" fill="url(#frontendGrad)" stroke="#3b82f6" stroke-opacity="0.3" stroke-width="1.5"/>
+    <rect x="16" y="12" width="120" height="24" rx="6" fill="#3b82f6" fill-opacity="0.2"/>
+    <text x="76" y="28" text-anchor="middle" font-size="11" fill="#60a5fa" font-weight="700" letter-spacing="1">USER LAYER</text>
 
-  <!-- Next.js Frontend -->
-  <rect x="80" y="195" width="700" height="180" rx="12" fill="url(#cardGrad)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-  <text x="100" y="220" fill="#93c5fd" font-size="16" font-weight="700">Next.js 15 Frontend</text>
-  <text x="340" y="220" fill="rgba(255,255,255,0.5)" font-size="11">TypeScript + Tailwind + shadcn/ui</text>
+    <rect x="30" y="48" width="1060" height="56" rx="10" fill="url(#blueBox)" stroke="#3b82f6" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="56" y="70" font-size="14" fill="#93c5fd" font-weight="700">Next.js 16 + React 19 Frontend</text>
+    <text x="56" y="90" font-size="11" fill="#64748b">TypeScript  |  Tailwind CSS v4  |  shadcn/ui  |  Framer Motion  |  Zustand  |  ~698 Vitest tests</text>
 
-  <!-- Frontend pages -->
-  <g transform="translate(95, 237)">
-    <rect width="118" height="55" rx="8" fill="rgba(59,130,246,0.2)" stroke="rgba(59,130,246,0.4)" stroke-width="1"/>
-    <text x="59" y="22" text-anchor="middle" fill="#93c5fd" font-size="20">&#x1F50D;</text>
-    <text x="59" y="42" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="11" font-weight="500">Search</text>
-  </g>
-  <g transform="translate(225, 237)">
-    <rect width="118" height="55" rx="8" fill="rgba(139,92,246,0.2)" stroke="rgba(139,92,246,0.4)" stroke-width="1"/>
-    <text x="59" y="22" text-anchor="middle" fill="#c4b5fd" font-size="20">&#x1F4AC;</text>
-    <text x="59" y="42" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="11" font-weight="500">Chat (SSE)</text>
-  </g>
-  <g transform="translate(355, 237)">
-    <rect width="118" height="55" rx="8" fill="rgba(16,185,129,0.2)" stroke="rgba(16,185,129,0.4)" stroke-width="1"/>
-    <text x="59" y="22" text-anchor="middle" fill="#6ee7b7" font-size="20">&#x1F4C4;</text>
-    <text x="59" y="42" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="11" font-weight="500">Upload &amp; Analyze</text>
-  </g>
-  <g transform="translate(485, 237)">
-    <rect width="118" height="55" rx="8" fill="rgba(245,158,11,0.2)" stroke="rgba(245,158,11,0.4)" stroke-width="1"/>
-    <text x="59" y="22" text-anchor="middle" fill="#fcd34d" font-size="20">&#x1F4CA;</text>
-    <text x="59" y="42" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="11" font-weight="500">Dashboard</text>
-  </g>
-  <g transform="translate(615, 237)">
-    <rect width="145" height="55" rx="8" fill="rgba(236,72,153,0.2)" stroke="rgba(236,72,153,0.4)" stroke-width="1"/>
-    <text x="73" y="22" text-anchor="middle" fill="#f9a8d4" font-size="20">&#x1F4DA;</text>
-    <text x="73" y="42" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="11" font-weight="500">Collections &amp; Export</text>
-  </g>
+    <g transform="translate(30, 116)">
+      <rect x="0" y="0" width="130" height="34" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="65" y="21" text-anchor="middle" font-size="11" fill="#93c5fd" font-weight="500">Landing Page</text>
+      <rect x="142" y="0" width="110" height="34" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="197" y="21" text-anchor="middle" font-size="11" fill="#93c5fd" font-weight="500">Search</text>
+      <rect x="264" y="0" width="110" height="34" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="319" y="21" text-anchor="middle" font-size="11" fill="#93c5fd" font-weight="500">Chat</text>
+      <rect x="386" y="0" width="110" height="34" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="441" y="21" text-anchor="middle" font-size="11" fill="#93c5fd" font-weight="500">Upload</text>
+      <rect x="508" y="0" width="110" height="34" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="563" y="21" text-anchor="middle" font-size="11" fill="#93c5fd" font-weight="500">Papers</text>
+      <rect x="630" y="0" width="120" height="34" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="690" y="21" text-anchor="middle" font-size="11" fill="#93c5fd" font-weight="500">Collections</text>
+      <rect x="762" y="0" width="120" height="34" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="822" y="21" text-anchor="middle" font-size="11" fill="#93c5fd" font-weight="500">Dashboard</text>
+    </g>
 
-  <!-- API Client bar -->
-  <rect x="95" y="305" width="670" height="30" rx="6" fill="rgba(102,126,234,0.15)" stroke="rgba(102,126,234,0.3)" stroke-width="1"/>
-  <text x="430" y="325" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11" font-weight="500">API Client  (fetch + Server-Sent Events streaming)</text>
-
-  <!-- Telegram Bot -->
-  <rect x="810" y="195" width="310" height="180" rx="12" fill="url(#cardGrad)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-  <text x="830" y="220" fill="#93c5fd" font-size="16" font-weight="700">Telegram Bot</text>
-  <text x="960" y="220" fill="rgba(255,255,255,0.5)" font-size="11">python-telegram-bot</text>
-
-  <g transform="translate(825, 237)">
-    <rect width="130" height="45" rx="8" fill="rgba(59,130,246,0.15)" stroke="rgba(59,130,246,0.3)" stroke-width="1"/>
-    <text x="65" y="28" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="11">/ask &#x2192; RAG</text>
-  </g>
-  <g transform="translate(965, 237)">
-    <rect width="130" height="45" rx="8" fill="rgba(59,130,246,0.15)" stroke="rgba(59,130,246,0.3)" stroke-width="1"/>
-    <text x="65" y="28" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="11">/search &#x2192; Hybrid</text>
-  </g>
-  <g transform="translate(825, 293)">
-    <rect width="270" height="42" rx="8" fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
-    <text x="135" y="26" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">Paper Alerts  &#x2022;  Daily Digest  &#x2022;  Subscriptions</text>
+    <g transform="translate(30, 162)">
+      <rect x="0" y="0" width="140" height="26" rx="13" fill="#312e81" stroke="#6366f1" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="70" y="17" text-anchor="middle" font-size="10" fill="#a5b4fc" font-weight="500">Cmd+K Palette</text>
+      <rect x="152" y="0" width="150" height="26" rx="13" fill="#312e81" stroke="#6366f1" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="227" y="17" text-anchor="middle" font-size="10" fill="#a5b4fc" font-weight="500">Mobile Bottom Nav</text>
+      <rect x="314" y="0" width="100" height="26" rx="13" fill="#312e81" stroke="#6366f1" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="364" y="17" text-anchor="middle" font-size="10" fill="#a5b4fc" font-weight="500">Auth UI</text>
+      <rect x="426" y="0" width="130" height="26" rx="13" fill="#312e81" stroke="#6366f1" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="491" y="17" text-anchor="middle" font-size="10" fill="#a5b4fc" font-weight="500">Glass Morphism</text>
+      <rect x="568" y="0" width="150" height="26" rx="13" fill="#312e81" stroke="#6366f1" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="643" y="17" text-anchor="middle" font-size="10" fill="#a5b4fc" font-weight="500">Keyboard Shortcuts</text>
+      <rect x="730" y="0" width="140" height="26" rx="13" fill="#312e81" stroke="#6366f1" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="800" y="17" text-anchor="middle" font-size="10" fill="#a5b4fc" font-weight="500">Pull to Refresh</text>
+    </g>
   </g>
 
-  <!-- Connection arrows: Frontend → API -->
-  <line x1="430" y1="400" x2="430" y2="425" stroke="url(#arrowGrad)" stroke-width="2" marker-end="url(#arrowhead)"/>
-  <text x="450" y="418" fill="rgba(255,255,255,0.4)" font-size="10">HTTPS / SSE</text>
+  <!-- Arrow: Frontend to API -->
+  <line x1="600" y1="304" x2="600" y2="326" stroke="#475569" stroke-width="1.5" marker-end="url(#arrowDown)"/>
+  <text x="618" y="318" font-size="9" fill="#475569">REST + SSE</text>
 
-  <line x1="960" y1="400" x2="960" y2="425" stroke="url(#arrowGrad)" stroke-width="2" marker-end="url(#arrowhead)"/>
-  <text x="980" y="418" fill="rgba(255,255,255,0.4)" font-size="10">Webhook</text>
+  <!-- ==================== LAYER 2: API GATEWAY ==================== -->
+  <g transform="translate(40, 330)">
+    <rect x="0" y="0" width="1120" height="150" rx="16" fill="url(#apiGrad)" stroke="#10b981" stroke-opacity="0.3" stroke-width="1.5"/>
+    <rect x="16" y="12" width="130" height="24" rx="6" fill="#10b981" fill-opacity="0.2"/>
+    <text x="81" y="28" text-anchor="middle" font-size="11" fill="#34d399" font-weight="700" letter-spacing="1">API GATEWAY</text>
 
-  <!-- ═══════════════════════════════════════ -->
-  <!-- LAYER 2: API GATEWAY -->
-  <!-- ═══════════════════════════════════════ -->
-  <rect x="50" y="430" width="1100" height="220" rx="16" fill="url(#apiGrad)" stroke="rgba(82,183,136,0.4)" stroke-width="1.5" filter="url(#softShadow)"/>
+    <rect x="30" y="48" width="1060" height="42" rx="10" fill="url(#greenBox)" stroke="#10b981" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="56" y="67" font-size="14" fill="#6ee7b7" font-weight="700">FastAPI :8000</text>
+    <text x="220" y="67" font-size="11" fill="#64748b">Async Python 3.12  |  Auto-generated OpenAPI docs  |  Pydantic v2 validation</text>
+    <text x="56" y="82" font-size="10" fill="#475569">Middleware: CORS, Request Logging, Error Handling  |  DI Container (Annotated[] singletons)</text>
 
-  <rect x="70" y="440" width="200" height="28" rx="14" fill="rgba(82,183,136,0.6)"/>
-  <text x="170" y="459" text-anchor="middle" fill="white" font-size="12" font-weight="600" letter-spacing="1">API GATEWAY (:8000)</text>
-
-  <!-- Router cards -->
-  <g transform="translate(80, 480)">
-    <rect width="155" height="52" rx="8" fill="rgba(82,183,136,0.15)" stroke="rgba(82,183,136,0.3)" stroke-width="1"/>
-    <text x="78" y="22" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">/api/v1/search</text>
-    <text x="78" y="40" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">BM25 + KNN + RRF</text>
-  </g>
-  <g transform="translate(245, 480)">
-    <rect width="155" height="52" rx="8" fill="rgba(82,183,136,0.15)" stroke="rgba(82,183,136,0.3)" stroke-width="1"/>
-    <text x="78" y="22" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">/api/v1/chat</text>
-    <text x="78" y="40" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">SSE + Follow-up</text>
-  </g>
-  <g transform="translate(410, 480)">
-    <rect width="155" height="52" rx="8" fill="rgba(82,183,136,0.15)" stroke="rgba(82,183,136,0.3)" stroke-width="1"/>
-    <text x="78" y="22" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">/api/v1/ask</text>
-    <text x="78" y="40" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">RAG + Streaming</text>
-  </g>
-  <g transform="translate(575, 480)">
-    <rect width="155" height="52" rx="8" fill="rgba(82,183,136,0.15)" stroke="rgba(82,183,136,0.3)" stroke-width="1"/>
-    <text x="78" y="22" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">/api/v1/upload</text>
-    <text x="78" y="40" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">PDF + Analysis</text>
-  </g>
-  <g transform="translate(740, 480)">
-    <rect width="155" height="52" rx="8" fill="rgba(82,183,136,0.15)" stroke="rgba(82,183,136,0.3)" stroke-width="1"/>
-    <text x="78" y="22" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">/api/v1/ingest</text>
-    <text x="78" y="40" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">Data Pipeline</text>
-  </g>
-  <g transform="translate(905, 480)">
-    <rect width="215" height="52" rx="8" fill="rgba(82,183,136,0.15)" stroke="rgba(82,183,136,0.3)" stroke-width="1"/>
-    <text x="108" y="22" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">/api/v1/papers | collections</text>
-    <text x="108" y="40" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">CRUD + Export + Trends</text>
+    <g transform="translate(30, 100)">
+      <rect x="0" y="0" width="120" height="34" rx="7" fill="#1a3a2a" stroke="#10b981" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="60" y="21" text-anchor="middle" font-size="11" fill="#6ee7b7" font-weight="500">/search</text>
+      <rect x="132" y="0" width="120" height="34" rx="7" fill="#1a3a2a" stroke="#10b981" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="192" y="21" text-anchor="middle" font-size="11" fill="#6ee7b7" font-weight="500">/chat</text>
+      <rect x="264" y="0" width="120" height="34" rx="7" fill="#1a3a2a" stroke="#10b981" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="324" y="21" text-anchor="middle" font-size="11" fill="#6ee7b7" font-weight="500">/upload</text>
+      <rect x="396" y="0" width="120" height="34" rx="7" fill="#1a3a2a" stroke="#10b981" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="456" y="21" text-anchor="middle" font-size="11" fill="#6ee7b7" font-weight="500">/analysis</text>
+      <rect x="528" y="0" width="120" height="34" rx="7" fill="#1a3a2a" stroke="#10b981" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="588" y="21" text-anchor="middle" font-size="11" fill="#6ee7b7" font-weight="500">/papers</text>
+      <rect x="660" y="0" width="130" height="34" rx="7" fill="#1a3a2a" stroke="#10b981" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="725" y="21" text-anchor="middle" font-size="11" fill="#6ee7b7" font-weight="500">/collections</text>
+      <rect x="802" y="0" width="120" height="34" rx="7" fill="#1a3a2a" stroke="#10b981" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="862" y="21" text-anchor="middle" font-size="11" fill="#6ee7b7" font-weight="500">/ingest</text>
+    </g>
   </g>
 
-  <!-- Middleware bar -->
-  <g transform="translate(80, 548)">
-    <rect width="180" height="36" rx="8" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-    <text x="90" y="23" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="11">Middleware (CORS, Log)</text>
-  </g>
-  <g transform="translate(275, 548)">
-    <rect width="180" height="36" rx="8" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-    <text x="90" y="23" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="11">Dependency Injection</text>
-  </g>
-  <g transform="translate(470, 548)">
-    <rect width="180" height="36" rx="8" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-    <text x="90" y="23" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="11">Error Handler</text>
-  </g>
-  <g transform="translate(665, 548)">
-    <rect width="180" height="36" rx="8" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-    <text x="90" y="23" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="11">Pydantic Validation</text>
-  </g>
-  <g transform="translate(860, 548)">
-    <rect width="180" height="36" rx="8" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-    <text x="90" y="23" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="11">API Key Auth</text>
-  </g>
+  <!-- Arrow: API to Services -->
+  <line x1="600" y1="484" x2="600" y2="506" stroke="#475569" stroke-width="1.5" marker-end="url(#arrowDown)"/>
+  <text x="618" y="498" font-size="9" fill="#475569">Depends()</text>
 
-  <!-- API FastAPI label -->
-  <text x="1120" y="460" text-anchor="end" fill="rgba(255,255,255,0.3)" font-size="11" font-weight="600">FastAPI</text>
+  <!-- ==================== LAYER 3: SERVICE LAYER ==================== -->
+  <g transform="translate(40, 510)">
+    <rect x="0" y="0" width="1120" height="430" rx="16" fill="url(#serviceGrad)" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1.5"/>
+    <rect x="16" y="12" width="140" height="24" rx="6" fill="#f59e0b" fill-opacity="0.2"/>
+    <text x="86" y="28" text-anchor="middle" font-size="11" fill="#fbbf24" font-weight="700" letter-spacing="1">SERVICE LAYER</text>
+    <text x="170" y="28" font-size="9" fill="#78716c">(~1147 pytest tests)</text>
 
-  <!-- Connection: API → Services -->
-  <line x1="600" y1="650" x2="600" y2="680" stroke="url(#arrowGrad)" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <!-- Agentic RAG Pipeline -->
+    <rect x="30" y="48" width="1060" height="80" rx="10" fill="url(#amberBox)" stroke="#f59e0b" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="56" y="68" font-size="13" fill="#fcd34d" font-weight="700">Agentic RAG Pipeline (LangGraph)</text>
 
-  <!-- ═══════════════════════════════════════ -->
-  <!-- LAYER 3: SERVICE LAYER -->
-  <!-- ═══════════════════════════════════════ -->
-  <rect x="50" y="685" width="1100" height="480" rx="16" fill="url(#serviceGrad)" stroke="rgba(251,146,60,0.4)" stroke-width="1.5" filter="url(#softShadow)"/>
+    <g transform="translate(56, 78)">
+      <rect x="0" y="0" width="110" height="32" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="55" y="20" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="500">Guardrail</text>
+      <line x1="114" y1="16" x2="134" y2="16" stroke="#78716c" stroke-width="1" marker-end="url(#arrowRight)"/>
+      <rect x="138" y="0" width="110" height="32" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="193" y="20" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="500">Retrieve</text>
+      <line x1="252" y1="16" x2="272" y2="16" stroke="#78716c" stroke-width="1" marker-end="url(#arrowRight)"/>
+      <rect x="276" y="0" width="110" height="32" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="331" y="20" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="500">Grade Docs</text>
+      <line x1="390" y1="16" x2="410" y2="16" stroke="#78716c" stroke-width="1" marker-end="url(#arrowRight)"/>
+      <rect x="414" y="0" width="110" height="32" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="469" y="20" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="500">Rewrite Query</text>
+      <line x1="528" y1="16" x2="548" y2="16" stroke="#78716c" stroke-width="1" marker-end="url(#arrowRight)"/>
+      <rect x="552" y="0" width="120" height="32" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="612" y="20" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="500">Web Search</text>
+      <line x1="676" y1="16" x2="696" y2="16" stroke="#78716c" stroke-width="1" marker-end="url(#arrowRight)"/>
+      <rect x="700" y="0" width="130" height="32" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="765" y="20" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="500">Generate Answer</text>
+      <path d="M331,32 L331,44 L469,44 L469,32" fill="none" stroke="#78716c" stroke-width="0.8" stroke-dasharray="3,2"/>
+      <text x="400" y="54" text-anchor="middle" font-size="8" fill="#78716c">low relevance loop</text>
+    </g>
 
-  <rect x="70" y="695" width="180" height="28" rx="14" fill="rgba(251,146,60,0.6)"/>
-  <text x="160" y="714" text-anchor="middle" fill="white" font-size="12" font-weight="600" letter-spacing="1">SERVICE LAYER</text>
+    <!-- Multi-Source RAG -->
+    <rect x="30" y="140" width="520" height="70" rx="10" fill="url(#amberBox)" stroke="#f59e0b" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="56" y="160" font-size="13" fill="#fcd34d" font-weight="700">Multi-Source RAG</text>
+    <g transform="translate(56, 168)">
+      <rect x="0" y="0" width="140" height="28" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="70" y="18" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="500">KB Search</text>
+      <rect x="152" y="0" width="140" height="28" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="222" y="18" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="500">arXiv API</text>
+      <rect x="304" y="0" width="170" height="28" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="389" y="18" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="500">DuckDuckGo Search</text>
+    </g>
+    <text x="280" y="207" text-anchor="middle" font-size="9" fill="#78716c">parallel execution</text>
 
-  <!-- AGENT SYSTEM -->
-  <rect x="80" y="735" width="1040" height="200" rx="12" fill="rgba(255,255,255,0.05)" stroke="rgba(251,146,60,0.3)" stroke-width="1"/>
-  <text x="100" y="758" fill="#fdba74" font-size="14" font-weight="700">Agent System (LangGraph)</text>
+    <!-- Advanced Retrieval -->
+    <rect x="570" y="140" width="520" height="70" rx="10" fill="url(#amberBox)" stroke="#f59e0b" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="596" y="160" font-size="13" fill="#fcd34d" font-weight="700">Advanced Retrieval Pipeline</text>
+    <g transform="translate(590, 168)">
+      <rect x="0" y="0" width="100" height="28" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="50" y="13" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">Multi-Query</text>
+      <text x="50" y="23" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">+ HyDE</text>
+      <line x1="104" y1="14" x2="114" y2="14" stroke="#78716c" stroke-width="1" marker-end="url(#arrowRight)"/>
+      <rect x="118" y="0" width="120" height="28" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="178" y="13" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">Hybrid Search</text>
+      <text x="178" y="23" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">BM25+KNN+RRF</text>
+      <line x1="242" y1="14" x2="252" y2="14" stroke="#78716c" stroke-width="1" marker-end="url(#arrowRight)"/>
+      <rect x="256" y="0" width="100" height="28" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="306" y="13" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">Re-rank</text>
+      <text x="306" y="23" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">Cross-encoder</text>
+      <line x1="360" y1="14" x2="370" y2="14" stroke="#78716c" stroke-width="1" marker-end="url(#arrowRight)"/>
+      <rect x="374" y="0" width="100" height="28" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="424" y="13" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">Parent</text>
+      <text x="424" y="23" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">Expansion</text>
+    </g>
 
-  <!-- Agent flow nodes -->
-  <g transform="translate(100, 770)">
-    <rect width="130" height="60" rx="10" fill="rgba(239,68,68,0.15)" stroke="rgba(239,68,68,0.5)" stroke-width="1.5"/>
-    <text x="65" y="25" text-anchor="middle" fill="#fca5a5" font-size="12" font-weight="600">Guardrail</text>
-    <text x="65" y="43" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">Domain filter</text>
-  </g>
-  <!-- Arrow -->
-  <line x1="235" y1="800" x2="260" y2="800" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <!-- LLM Router -->
+    <rect x="30" y="222" width="520" height="80" rx="10" fill="url(#amberBox)" stroke="#f59e0b" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="56" y="242" font-size="13" fill="#fcd34d" font-weight="700">LLM Router</text>
+    <text x="160" y="242" font-size="9" fill="#78716c">task-based routing with fallback chains</text>
+    <g transform="translate(56, 252)">
+      <rect x="0" y="0" width="140" height="36" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="70" y="14" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="600">Gemini 2.5 Flash</text>
+      <text x="70" y="28" text-anchor="middle" font-size="9" fill="#78716c">Research Q&amp;A</text>
+      <rect x="160" y="0" width="140" height="36" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="230" y="14" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="600">Claude Sonnet</text>
+      <text x="230" y="28" text-anchor="middle" font-size="9" fill="#78716c">Code Generation</text>
+      <rect x="320" y="0" width="140" height="36" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="390" y="14" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="600">Ollama (local)</text>
+      <text x="390" y="28" text-anchor="middle" font-size="9" fill="#78716c">Dev / Fallback</text>
+    </g>
 
-  <g transform="translate(265, 770)">
-    <rect width="130" height="60" rx="10" fill="rgba(59,130,246,0.15)" stroke="rgba(59,130,246,0.5)" stroke-width="1.5"/>
-    <text x="65" y="25" text-anchor="middle" fill="#93c5fd" font-size="12" font-weight="600">Retrieve</text>
-    <text x="65" y="43" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">Hybrid search</text>
-  </g>
-  <line x1="400" y1="800" x2="425" y2="800" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <!-- Analysis Engine -->
+    <rect x="570" y="222" width="250" height="80" rx="10" fill="url(#amberBox)" stroke="#f59e0b" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="596" y="242" font-size="13" fill="#fcd34d" font-weight="700">Analysis Engine</text>
+    <g transform="translate(590, 252)">
+      <rect x="0" y="0" width="100" height="28" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="50" y="18" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="500">Summarizer</text>
+      <rect x="112" y="0" width="100" height="28" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="162" y="18" text-anchor="middle" font-size="10" fill="#fde68a" font-weight="500">Comparator</text>
+    </g>
+    <text x="695" y="295" text-anchor="middle" font-size="9" fill="#78716c">Highlights, Methodology, Limitations</text>
 
-  <g transform="translate(430, 770)">
-    <rect width="130" height="60" rx="10" fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.5)" stroke-width="1.5"/>
-    <text x="65" y="25" text-anchor="middle" fill="#fcd34d" font-size="12" font-weight="600">Grade Docs</text>
-    <text x="65" y="43" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">Relevance check</text>
-  </g>
-  <line x1="565" y1="800" x2="590" y2="800" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <!-- Chat Engine -->
+    <rect x="840" y="222" width="250" height="80" rx="10" fill="url(#amberBox)" stroke="#f59e0b" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="866" y="242" font-size="13" fill="#fcd34d" font-weight="700">Chat Engine</text>
+    <g transform="translate(860, 252)">
+      <rect x="0" y="0" width="100" height="28" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="50" y="13" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">Session</text>
+      <text x="50" y="24" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">Memory</text>
+      <rect x="112" y="0" width="100" height="28" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="162" y="13" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">Follow-up</text>
+      <text x="162" y="24" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="500">Detection</text>
+    </g>
 
-  <g transform="translate(595, 770)">
-    <rect width="155" height="60" rx="10" fill="rgba(16,185,129,0.15)" stroke="rgba(16,185,129,0.5)" stroke-width="1.5"/>
-    <text x="78" y="25" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="600">Generate Answer</text>
-    <text x="78" y="43" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">Citations [1][2]</text>
-  </g>
+    <!-- Supporting services -->
+    <rect x="30" y="314" width="1060" height="42" rx="10" fill="url(#amberBox)" stroke="#f59e0b" stroke-opacity="0.15" stroke-width="1"/>
+    <text x="56" y="335" font-size="11" fill="#fcd34d" font-weight="600">Supporting Services:</text>
+    <text x="200" y="335" font-size="11" fill="#d6d3d1">PDF Parser (Docling + PyMuPDF)</text>
+    <text x="420" y="335" font-size="11" fill="#d6d3d1">Text Chunker (parent-child)</text>
+    <text x="620" y="335" font-size="11" fill="#d6d3d1">Citation Enforcer</text>
+    <text x="780" y="335" font-size="11" fill="#d6d3d1">Upload Service</text>
+    <text x="920" y="335" font-size="11" fill="#d6d3d1">Coreference Resolution</text>
 
-  <!-- Rewrite loop -->
-  <g transform="translate(430, 845)">
-    <rect width="130" height="45" rx="8" fill="rgba(168,85,247,0.15)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
-    <text x="65" y="18" text-anchor="middle" fill="#c4b5fd" font-size="11" font-weight="600">Rewrite Query</text>
-    <text x="65" y="34" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">max 3 retries</text>
-  </g>
-  <!-- Curved retry arrow -->
-  <path d="M 495 845 C 495 838, 395 838, 330 810 L 330 805" fill="none" stroke="rgba(168,85,247,0.6)" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowhead)"/>
-
-  <!-- Specialized Agents -->
-  <g transform="translate(790, 770)">
-    <rect width="310" height="115" rx="10" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-    <text x="155" y="20" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="11" font-weight="600" letter-spacing="1">SPECIALIZED AGENTS</text>
-
-    <rect x="10" y="32" width="135" height="32" rx="6" fill="rgba(16,185,129,0.15)" stroke="rgba(16,185,129,0.3)" stroke-width="1"/>
-    <text x="78" y="53" text-anchor="middle" fill="#6ee7b7" font-size="10">Summarizer</text>
-
-    <rect x="155" y="32" width="135" height="32" rx="6" fill="rgba(239,68,68,0.15)" stroke="rgba(239,68,68,0.3)" stroke-width="1"/>
-    <text x="223" y="53" text-anchor="middle" fill="#fca5a5" font-size="10">Fact-Checker</text>
-
-    <rect x="10" y="72" width="135" height="32" rx="6" fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
-    <text x="78" y="93" text-anchor="middle" fill="#fcd34d" font-size="10">Trend Analyzer</text>
-
-    <rect x="155" y="72" width="135" height="32" rx="6" fill="rgba(139,92,246,0.15)" stroke="rgba(139,92,246,0.3)" stroke-width="1"/>
-    <text x="223" y="93" text-anchor="middle" fill="#c4b5fd" font-size="10">Citation Tracker</text>
-  </g>
-
-  <!-- CORE SERVICES -->
-  <text x="100" y="915" fill="#fdba74" font-size="14" font-weight="700">Core Services</text>
-
-  <!-- Service cards row 1 -->
-  <g transform="translate(80, 928)">
-    <rect width="145" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-    <text x="73" y="25" text-anchor="middle" fill="white" font-size="12" font-weight="600">LLM Client</text>
-    <text x="73" y="42" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Ollama / Gemini 3</text>
-    <text x="73" y="57" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">Flash</text>
-  </g>
-  <g transform="translate(237, 928)">
-    <rect width="145" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-    <text x="73" y="25" text-anchor="middle" fill="white" font-size="12" font-weight="600">Embeddings</text>
-    <text x="73" y="42" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Jina AI v3</text>
-    <text x="73" y="57" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">1024-dim</text>
-  </g>
-  <g transform="translate(394, 928)">
-    <rect width="145" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-    <text x="73" y="25" text-anchor="middle" fill="white" font-size="12" font-weight="600">RAG Chain</text>
-    <text x="73" y="42" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Retrieve &#x2192; Prompt</text>
-    <text x="73" y="57" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">&#x2192; Generate</text>
-  </g>
-  <g transform="translate(551, 928)">
-    <rect width="145" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-    <text x="73" y="25" text-anchor="middle" fill="white" font-size="12" font-weight="600">Re-ranking</text>
-    <text x="73" y="42" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Cross-encoder</text>
-    <text x="73" y="57" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">MiniLM-L-12</text>
-  </g>
-  <g transform="translate(708, 928)">
-    <rect width="145" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-    <text x="73" y="25" text-anchor="middle" fill="white" font-size="12" font-weight="600">PDF Parser</text>
-    <text x="73" y="42" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Docling 2.43+</text>
-    <text x="73" y="57" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">Section-aware</text>
-  </g>
-
-  <!-- Service cards row 2 -->
-  <g transform="translate(80, 1010)">
-    <rect width="145" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-    <text x="73" y="25" text-anchor="middle" fill="white" font-size="12" font-weight="600">Chat Memory</text>
-    <text x="73" y="42" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Redis sessions</text>
-    <text x="73" y="57" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">Follow-up Q&amp;A</text>
-  </g>
-  <g transform="translate(237, 1010)">
-    <rect width="145" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-    <text x="73" y="25" text-anchor="middle" fill="white" font-size="12" font-weight="600">Cache</text>
-    <text x="73" y="42" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Redis 7</text>
-    <text x="73" y="57" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">24h TTL</text>
-  </g>
-  <g transform="translate(394, 1010)">
-    <rect width="145" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-    <text x="73" y="25" text-anchor="middle" fill="white" font-size="12" font-weight="600">ArXiv Client</text>
-    <text x="73" y="42" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Rate-limited</text>
-    <text x="73" y="57" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">Retry + backoff</text>
-  </g>
-  <g transform="translate(551, 1010)">
-    <rect width="145" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-    <text x="73" y="25" text-anchor="middle" fill="white" font-size="12" font-weight="600">Citations</text>
-    <text x="73" y="42" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Parse + validate</text>
-    <text x="73" y="57" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">[1] refs + links</text>
-  </g>
-  <g transform="translate(708, 1010)">
-    <rect width="145" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-    <text x="73" y="25" text-anchor="middle" fill="white" font-size="12" font-weight="600">Retrieval</text>
-    <text x="73" y="42" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">HyDE + Multi-query</text>
-    <text x="73" y="57" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">Parent expansion</text>
+    <!-- Core Patterns -->
+    <rect x="30" y="366" width="1060" height="46" rx="10" fill="url(#amberBox)" stroke="#f59e0b" stroke-opacity="0.15" stroke-width="1"/>
+    <text x="56" y="387" font-size="11" fill="#fcd34d" font-weight="600">Core Patterns:</text>
+    <text x="170" y="387" font-size="10" fill="#a8a29e">Factory Pattern</text>
+    <text x="300" y="387" font-size="10" fill="#a8a29e">Async/Await (all I/O)</text>
+    <text x="460" y="387" font-size="10" fill="#a8a29e">Repository Pattern</text>
+    <text x="620" y="387" font-size="10" fill="#a8a29e">Pydantic Schemas</text>
+    <text x="770" y="387" font-size="10" fill="#a8a29e">Type Hints (100%)</text>
+    <text x="920" y="387" font-size="10" fill="#a8a29e">Environment Config</text>
+    <text x="170" y="403" font-size="10" fill="#a8a29e">Custom Exceptions</text>
+    <text x="300" y="403" font-size="10" fill="#a8a29e">Global Error Handler</text>
+    <text x="460" y="403" font-size="10" fill="#a8a29e">Annotated[] DI Singletons</text>
+    <text x="620" y="403" font-size="10" fill="#a8a29e">Streaming SSE</text>
   </g>
 
-  <!-- Langfuse box -->
-  <g transform="translate(870, 928)">
-    <rect width="240" height="150" rx="10" fill="rgba(139,92,246,0.1)" stroke="rgba(139,92,246,0.3)" stroke-width="1"/>
-    <text x="120" y="25" text-anchor="middle" fill="#c4b5fd" font-size="12" font-weight="600">Observability</text>
-    <text x="120" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="11">Langfuse v3 Tracing</text>
-    <text x="120" y="70" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Per-node spans</text>
-    <text x="120" y="88" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Cost tracking</text>
-    <text x="120" y="106" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="10">Latency analysis</text>
+  <!-- Arrow: Services to Data -->
+  <line x1="600" y1="944" x2="600" y2="966" stroke="#475569" stroke-width="1.5" marker-end="url(#arrowDown)"/>
 
-    <rect x="40" y="118" width="160" height="22" rx="4" fill="rgba(139,92,246,0.2)"/>
-    <text x="120" y="133" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="9">ClickHouse + MinIO</text>
+  <!-- ==================== LAYER 4: DATA LAYER ==================== -->
+  <g transform="translate(40, 970)">
+    <rect x="0" y="0" width="850" height="160" rx="16" fill="url(#dataGrad)" stroke="#8b5cf6" stroke-opacity="0.3" stroke-width="1.5"/>
+    <rect x="16" y="12" width="120" height="24" rx="6" fill="#8b5cf6" fill-opacity="0.2"/>
+    <text x="76" y="28" text-anchor="middle" font-size="11" fill="#a78bfa" font-weight="700" letter-spacing="1">DATA LAYER</text>
+
+    <rect x="30" y="48" width="190" height="96" rx="10" fill="url(#purpleBox)" stroke="#8b5cf6" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="125" y="70" text-anchor="middle" font-size="13" fill="#c4b5fd" font-weight="700">PostgreSQL 16</text>
+    <text x="125" y="88" text-anchor="middle" font-size="10" fill="#a78bfa">SQLAlchemy 2.0</text>
+    <text x="125" y="102" text-anchor="middle" font-size="10" fill="#a78bfa">Alembic Migrations</text>
+    <text x="125" y="116" text-anchor="middle" font-size="9" fill="#64748b">Papers, Collections, Users</text>
+    <text x="125" y="130" text-anchor="middle" font-size="9" fill="#64748b">Async Sessions</text>
+
+    <rect x="240" y="48" width="190" height="96" rx="10" fill="url(#purpleBox)" stroke="#8b5cf6" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="335" y="70" text-anchor="middle" font-size="13" fill="#c4b5fd" font-weight="700">OpenSearch 2.19</text>
+    <text x="335" y="88" text-anchor="middle" font-size="10" fill="#a78bfa">BM25 + KNN Hybrid</text>
+    <text x="335" y="102" text-anchor="middle" font-size="10" fill="#a78bfa">RRF Fusion</text>
+    <text x="335" y="116" text-anchor="middle" font-size="9" fill="#64748b">1024-dim vectors</text>
+    <text x="335" y="130" text-anchor="middle" font-size="9" fill="#64748b">Paper chunks index</text>
+
+    <rect x="450" y="48" width="180" height="96" rx="10" fill="url(#purpleBox)" stroke="#8b5cf6" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="540" y="70" text-anchor="middle" font-size="13" fill="#c4b5fd" font-weight="700">Redis 7</text>
+    <text x="540" y="88" text-anchor="middle" font-size="10" fill="#a78bfa">24h TTL Cache</text>
+    <text x="540" y="102" text-anchor="middle" font-size="10" fill="#a78bfa">Query Results</text>
+    <text x="540" y="116" text-anchor="middle" font-size="9" fill="#64748b">Session Memory</text>
+    <text x="540" y="130" text-anchor="middle" font-size="9" fill="#64748b">Embedding Cache</text>
+
+    <g transform="translate(650, 48)">
+      <rect x="0" y="0" width="170" height="44" rx="8" fill="url(#purpleBox)" stroke="#8b5cf6" stroke-opacity="0.25" stroke-width="1"/>
+      <text x="85" y="18" text-anchor="middle" font-size="12" fill="#c4b5fd" font-weight="600">MinIO</text>
+      <text x="85" y="33" text-anchor="middle" font-size="9" fill="#64748b">Object Storage (PDFs)</text>
+      <rect x="0" y="52" width="170" height="44" rx="8" fill="url(#purpleBox)" stroke="#8b5cf6" stroke-opacity="0.25" stroke-width="1"/>
+      <text x="85" y="70" text-anchor="middle" font-size="12" fill="#c4b5fd" font-weight="600">Jina AI Embeddings</text>
+      <text x="85" y="85" text-anchor="middle" font-size="9" fill="#64748b">v3, 1024-dim vectors</text>
+    </g>
   </g>
 
-  <!-- Connection: Services → Data -->
-  <line x1="600" y1="1165" x2="600" y2="1195" stroke="url(#arrowGrad)" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <!-- ==================== EXTERNAL SERVICES ==================== -->
+  <g transform="translate(920, 970)">
+    <rect x="0" y="0" width="240" height="160" rx="16" fill="url(#externalGrad)" stroke="#ec4899" stroke-opacity="0.3" stroke-width="1.5"/>
+    <rect x="16" y="12" width="100" height="24" rx="6" fill="#ec4899" fill-opacity="0.2"/>
+    <text x="66" y="28" text-anchor="middle" font-size="11" fill="#f9a8d4" font-weight="700" letter-spacing="1">EXTERNAL</text>
 
-  <!-- ═══════════════════════════════════════ -->
-  <!-- LAYER 4: DATA LAYER -->
-  <!-- ═══════════════════════════════════════ -->
-  <rect x="50" y="1200" width="1100" height="200" rx="16" fill="url(#dataGrad)" stroke="rgba(168,85,247,0.4)" stroke-width="1.5" filter="url(#softShadow)"/>
-
-  <rect x="70" y="1210" width="160" height="28" rx="14" fill="rgba(168,85,247,0.6)"/>
-  <text x="150" y="1229" text-anchor="middle" fill="white" font-size="12" font-weight="600" letter-spacing="1">DATA LAYER</text>
-
-  <!-- Database cards -->
-  <g transform="translate(80, 1250)">
-    <rect width="230" height="120" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(59,130,246,0.4)" stroke-width="1.5"/>
-    <rect x="0" y="0" width="230" height="32" rx="12" fill="rgba(59,130,246,0.2)"/>
-    <rect x="0" y="12" width="230" height="20" fill="rgba(59,130,246,0.2)"/>
-    <text x="115" y="22" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="700">PostgreSQL 16</text>
-    <text x="20" y="55" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; Papers, users, collections</text>
-    <text x="20" y="72" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; Annotations, eval results</text>
-    <text x="20" y="89" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; SQLAlchemy 2.0 async</text>
-    <text x="20" y="106" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; JSONB fields</text>
+    <rect x="20" y="48" width="200" height="28" rx="6" fill="#3b1532" stroke="#ec4899" stroke-opacity="0.2" stroke-width="1"/>
+    <text x="120" y="66" text-anchor="middle" font-size="11" fill="#f9a8d4" font-weight="500">arXiv API</text>
+    <rect x="20" y="82" width="200" height="28" rx="6" fill="#3b1532" stroke="#ec4899" stroke-opacity="0.2" stroke-width="1"/>
+    <text x="120" y="100" text-anchor="middle" font-size="11" fill="#f9a8d4" font-weight="500">DuckDuckGo (ddgs)</text>
+    <rect x="20" y="116" width="95" height="28" rx="6" fill="#3b1532" stroke="#ec4899" stroke-opacity="0.2" stroke-width="1"/>
+    <text x="67" y="134" text-anchor="middle" font-size="10" fill="#f9a8d4" font-weight="500">Langfuse</text>
+    <rect x="125" y="116" width="95" height="28" rx="6" fill="#3b1532" stroke="#ec4899" stroke-opacity="0.2" stroke-width="1"/>
+    <text x="172" y="134" text-anchor="middle" font-size="10" fill="#f9a8d4" font-weight="500">Airflow</text>
   </g>
 
-  <g transform="translate(330, 1250)">
-    <rect width="230" height="120" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(245,158,11,0.4)" stroke-width="1.5"/>
-    <rect x="0" y="0" width="230" height="32" rx="12" fill="rgba(245,158,11,0.2)"/>
-    <rect x="0" y="12" width="230" height="20" fill="rgba(245,158,11,0.2)"/>
-    <text x="115" y="22" text-anchor="middle" fill="#fcd34d" font-size="13" font-weight="700">OpenSearch 2.19</text>
-    <text x="20" y="55" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; BM25 full-text index</text>
-    <text x="20" y="72" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; KNN vector index (1024-dim)</text>
-    <text x="20" y="89" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; RRF fusion pipeline</text>
-    <text x="20" y="106" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; Parent-child chunks</text>
+  <!-- Arrow from services to external -->
+  <line x1="1040" y1="944" x2="1040" y2="966" stroke="#475569" stroke-width="1.5" marker-end="url(#arrowDown)"/>
+
+  <!-- ==================== DEPLOYMENT BAR ==================== -->
+  <g transform="translate(40, 1155)">
+    <rect x="0" y="0" width="1120" height="58" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow)"/>
+    <text x="30" y="22" font-size="10" fill="#64748b" font-weight="600" letter-spacing="1.5">DEPLOYMENT &amp; TOOLING</text>
+    <line x1="20" y1="30" x2="1100" y2="30" stroke="#334155" stroke-width="0.5"/>
+    <text x="30" y="48" font-size="10" fill="#94a3b8">Docker Compose (dev)</text>
+    <text x="175" y="48" font-size="10" fill="#475569">|</text>
+    <text x="190" y="48" font-size="10" fill="#94a3b8">GCP Cloud Run (prod)</text>
+    <text x="340" y="48" font-size="10" fill="#475569">|</text>
+    <text x="355" y="48" font-size="10" fill="#94a3b8">UV + pnpm</text>
+    <text x="440" y="48" font-size="10" fill="#475569">|</text>
+    <text x="455" y="48" font-size="10" fill="#94a3b8">Ruff + ESLint</text>
+    <text x="560" y="48" font-size="10" fill="#475569">|</text>
+    <text x="575" y="48" font-size="10" fill="#94a3b8">pytest + Vitest</text>
+    <text x="680" y="48" font-size="10" fill="#475569">|</text>
+    <text x="695" y="48" font-size="10" fill="#94a3b8">Makefile</text>
+    <text x="770" y="48" font-size="10" fill="#475569">|</text>
+    <text x="785" y="48" font-size="10" fill="#94a3b8">GitHub Actions CI</text>
+    <text x="920" y="48" font-size="10" fill="#475569">|</text>
+    <text x="935" y="48" font-size="10" fill="#94a3b8">Spec-Driven TDD</text>
   </g>
 
-  <g transform="translate(580, 1250)">
-    <rect width="230" height="120" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(239,68,68,0.4)" stroke-width="1.5"/>
-    <rect x="0" y="0" width="230" height="32" rx="12" fill="rgba(239,68,68,0.2)"/>
-    <rect x="0" y="12" width="230" height="20" fill="rgba(239,68,68,0.2)"/>
-    <text x="115" y="22" text-anchor="middle" fill="#fca5a5" font-size="13" font-weight="700">Redis 7</text>
-    <text x="20" y="55" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; RAG response cache</text>
-    <text x="20" y="72" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; Chat session history</text>
-    <text x="20" y="89" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; Rate limiting</text>
-    <text x="20" y="106" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; 24h TTL, LRU eviction</text>
+  <!-- ==================== RESEARCH Q&A FLOW ==================== -->
+  <g transform="translate(40, 1240)">
+    <rect x="0" y="0" width="1120" height="130" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow)"/>
+    <text x="30" y="22" font-size="10" fill="#64748b" font-weight="600" letter-spacing="1.5">RESEARCH Q&amp;A FLOW</text>
+    <line x1="20" y1="30" x2="1100" y2="30" stroke="#334155" stroke-width="0.5"/>
+
+    <g transform="translate(30, 42)">
+      <rect x="0" y="0" width="90" height="36" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="45" y="15" text-anchor="middle" font-size="9" fill="#60a5fa" font-weight="600">1. User asks</text>
+      <text x="45" y="27" text-anchor="middle" font-size="8" fill="#64748b">research Q</text>
+      <line x1="94" y1="18" x2="114" y2="18" stroke="#475569" stroke-width="1" marker-end="url(#arrowRight)"/>
+
+      <rect x="118" y="0" width="100" height="36" rx="6" fill="#1a3a2a" stroke="#10b981" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="168" y="15" text-anchor="middle" font-size="9" fill="#34d399" font-weight="600">2. FastAPI</text>
+      <text x="168" y="27" text-anchor="middle" font-size="8" fill="#64748b">routes to chat</text>
+      <line x1="222" y1="18" x2="242" y2="18" stroke="#475569" stroke-width="1" marker-end="url(#arrowRight)"/>
+
+      <rect x="246" y="0" width="110" height="36" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="301" y="15" text-anchor="middle" font-size="9" fill="#fbbf24" font-weight="600">3. LangGraph</text>
+      <text x="301" y="27" text-anchor="middle" font-size="8" fill="#64748b">agent pipeline</text>
+      <line x1="360" y1="18" x2="380" y2="18" stroke="#475569" stroke-width="1" marker-end="url(#arrowRight)"/>
+
+      <rect x="384" y="0" width="120" height="36" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="444" y="15" text-anchor="middle" font-size="9" fill="#fbbf24" font-weight="600">4. Hybrid Search</text>
+      <text x="444" y="27" text-anchor="middle" font-size="8" fill="#64748b">BM25+KNN+re-rank</text>
+      <line x1="508" y1="18" x2="528" y2="18" stroke="#475569" stroke-width="1" marker-end="url(#arrowRight)"/>
+
+      <rect x="532" y="0" width="100" height="36" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="582" y="15" text-anchor="middle" font-size="9" fill="#fbbf24" font-weight="600">5. Grade docs</text>
+      <text x="582" y="27" text-anchor="middle" font-size="8" fill="#64748b">relevance check</text>
+      <line x1="636" y1="18" x2="656" y2="18" stroke="#475569" stroke-width="1" marker-end="url(#arrowRight)"/>
+
+      <rect x="660" y="0" width="100" height="36" rx="6" fill="#422006" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="710" y="15" text-anchor="middle" font-size="9" fill="#fbbf24" font-weight="600">6. Generate</text>
+      <text x="710" y="27" text-anchor="middle" font-size="8" fill="#64748b">LLM + citations</text>
+      <line x1="764" y1="18" x2="784" y2="18" stroke="#475569" stroke-width="1" marker-end="url(#arrowRight)"/>
+
+      <rect x="788" y="0" width="110" height="36" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="843" y="15" text-anchor="middle" font-size="9" fill="#60a5fa" font-weight="600">7. Stream SSE</text>
+      <text x="843" y="27" text-anchor="middle" font-size="8" fill="#64748b">answer + sources</text>
+      <line x1="902" y1="18" x2="922" y2="18" stroke="#475569" stroke-width="1" marker-end="url(#arrowRight)"/>
+
+      <rect x="926" y="0" width="120" height="36" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-opacity="0.3" stroke-width="1"/>
+      <text x="986" y="15" text-anchor="middle" font-size="9" fill="#60a5fa" font-weight="600">8. Render chat</text>
+      <text x="986" y="27" text-anchor="middle" font-size="8" fill="#64748b">w/ arXiv links</text>
+    </g>
+
+    <text x="560" y="100" text-anchor="middle" font-size="10" fill="#64748b" font-style="italic">Every answer is grounded in real papers with title, authors, and arXiv links -- never hallucinated citations.</text>
+
+    <g transform="translate(30, 108)">
+      <rect x="0" y="0" width="10" height="10" rx="2" fill="#3b82f6" fill-opacity="0.5"/>
+      <text x="16" y="9" font-size="9" fill="#94a3b8">Frontend</text>
+      <rect x="80" y="0" width="10" height="10" rx="2" fill="#10b981" fill-opacity="0.5"/>
+      <text x="96" y="9" font-size="9" fill="#94a3b8">API</text>
+      <rect x="130" y="0" width="10" height="10" rx="2" fill="#f59e0b" fill-opacity="0.5"/>
+      <text x="146" y="9" font-size="9" fill="#94a3b8">Services</text>
+      <rect x="210" y="0" width="10" height="10" rx="2" fill="#8b5cf6" fill-opacity="0.5"/>
+      <text x="226" y="9" font-size="9" fill="#94a3b8">Data</text>
+      <rect x="270" y="0" width="10" height="10" rx="2" fill="#ec4899" fill-opacity="0.5"/>
+      <text x="286" y="9" font-size="9" fill="#94a3b8">External</text>
+    </g>
   </g>
 
-  <g transform="translate(830, 1250)">
-    <rect width="290" height="120" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(16,185,129,0.4)" stroke-width="1.5"/>
-    <rect x="0" y="0" width="290" height="32" rx="12" fill="rgba(16,185,129,0.2)"/>
-    <rect x="0" y="12" width="290" height="20" fill="rgba(16,185,129,0.2)"/>
-    <text x="145" y="22" text-anchor="middle" fill="#6ee7b7" font-size="13" font-weight="700">Airflow 2.10 + External APIs</text>
-    <text x="20" y="55" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; Scheduled ingestion DAGs</text>
-    <text x="20" y="72" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; arXiv API (fetch papers)</text>
-    <text x="20" y="89" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; Jina AI (embeddings)</text>
-    <text x="20" y="106" fill="rgba(255,255,255,0.6)" font-size="10">&#x2022; Gemini 3 Flash / Ollama (LLM)</text>
-  </g>
-
-  <!-- ═══════════════════════════════════════ -->
-  <!-- RAG PIPELINE CALLOUT -->
-  <!-- ═══════════════════════════════════════ -->
-  <rect x="50" y="1425" width="1100" height="145" rx="16" fill="rgba(255,255,255,0.03)" stroke="rgba(102,126,234,0.3)" stroke-width="1" filter="url(#softShadow)"/>
-
-  <rect x="70" y="1435" width="280" height="28" rx="14" fill="rgba(102,126,234,0.4)"/>
-  <text x="210" y="1454" text-anchor="middle" fill="white" font-size="12" font-weight="600" letter-spacing="1">ADVANCED RAG PIPELINE (4 STAGES)</text>
-
-  <!-- Pipeline stages -->
-  <g transform="translate(80, 1475)">
-    <rect width="230" height="70" rx="10" fill="rgba(139,92,246,0.12)" stroke="rgba(139,92,246,0.4)" stroke-width="1.5"/>
-    <text x="115" y="22" text-anchor="middle" fill="#c4b5fd" font-size="12" font-weight="700">1. Query Expansion</text>
-    <text x="115" y="40" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">Multi-query (3-5 variations)</text>
-    <text x="115" y="55" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">+ HyDE hypothetical docs</text>
-  </g>
-  <text x="320" y="1515" fill="#667eea" font-size="18" font-weight="bold">&#x2192;</text>
-
-  <g transform="translate(340, 1475)">
-    <rect width="230" height="70" rx="10" fill="rgba(59,130,246,0.12)" stroke="rgba(59,130,246,0.4)" stroke-width="1.5"/>
-    <text x="115" y="22" text-anchor="middle" fill="#93c5fd" font-size="12" font-weight="700">2. Hybrid Retrieval</text>
-    <text x="115" y="40" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">BM25 + KNN parallel search</text>
-    <text x="115" y="55" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">RRF fusion &#x2192; top 20</text>
-  </g>
-  <text x="580" y="1515" fill="#667eea" font-size="18" font-weight="bold">&#x2192;</text>
-
-  <g transform="translate(600, 1475)">
-    <rect width="230" height="70" rx="10" fill="rgba(245,158,11,0.12)" stroke="rgba(245,158,11,0.4)" stroke-width="1.5"/>
-    <text x="115" y="22" text-anchor="middle" fill="#fcd34d" font-size="12" font-weight="700">3. Re-ranking</text>
-    <text x="115" y="40" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">Cross-encoder re-scores</text>
-    <text x="115" y="55" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">top 20 &#x2192; top 5</text>
-  </g>
-  <text x="840" y="1515" fill="#667eea" font-size="18" font-weight="bold">&#x2192;</text>
-
-  <g transform="translate(860, 1475)">
-    <rect width="260" height="70" rx="10" fill="rgba(16,185,129,0.12)" stroke="rgba(16,185,129,0.4)" stroke-width="1.5"/>
-    <text x="130" y="22" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="700">4. Parent Expansion</text>
-    <text x="130" y="40" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">Retrieve parent sections</text>
-    <text x="130" y="55" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">5 rich context windows + metadata</text>
-  </g>
-
-  <!-- Footer -->
-  <text x="600" y="1590" text-anchor="middle" fill="rgba(255,255,255,0.25)" font-size="11" letter-spacing="1">
-    PaperAlchemy  &#x2022;  Built with FastAPI + LangGraph + Next.js  &#x2022;  Deployed on GCP Cloud Run
-  </text>
 </svg>

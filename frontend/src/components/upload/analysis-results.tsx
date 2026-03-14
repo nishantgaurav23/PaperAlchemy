@@ -125,7 +125,18 @@ function SummaryTab({ summary }: { summary: UploadResponse["summary"] }) {
               <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 {section.label}
               </h3>
-              <p className="text-sm leading-relaxed">{section.value}</p>
+              {Array.isArray(section.value) ? (
+                <ul className="flex flex-col gap-1.5">
+                  {section.value.map((item, i) => (
+                    <li key={i} className="flex gap-2 text-sm leading-relaxed text-foreground">
+                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm leading-relaxed text-foreground">{section.value}</p>
+              )}
             </div>
           ),
       )}
@@ -151,7 +162,7 @@ function HighlightsTab({ highlights }: { highlights: UploadResponse["highlights"
               </h3>
               <ul className="flex flex-col gap-1.5">
                 {section.items.map((item, i) => (
-                  <li key={i} className="flex gap-2 text-sm leading-relaxed">
+                  <li key={i} className="flex gap-2 text-sm leading-relaxed text-foreground">
                     <span className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
                     {item}
                   </li>
@@ -172,7 +183,7 @@ function MethodologyTab({ methodology }: { methodology: UploadResponse["methodol
           <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Approach
           </h3>
-          <p className="text-sm leading-relaxed">{methodology.approach}</p>
+          <p className="text-sm leading-relaxed text-foreground">{methodology.approach}</p>
         </div>
       )}
 
@@ -212,7 +223,7 @@ function MethodologyTab({ methodology }: { methodology: UploadResponse["methodol
           <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Results
           </h3>
-          <p className="text-sm leading-relaxed">{methodology.results}</p>
+          <p className="text-sm leading-relaxed text-foreground">{methodology.results}</p>
         </div>
       )}
 

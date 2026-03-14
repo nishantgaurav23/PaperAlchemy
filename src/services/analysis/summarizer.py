@@ -143,7 +143,7 @@ class SummarizerService:
         # 2. Check content sufficiency
         has_abstract = bool(paper.abstract and paper.abstract.strip())
         has_sections = bool(paper.sections)
-        has_pdf_content = bool(paper.pdf_content and paper.pdf_content.strip()) if hasattr(paper, "pdf_content") else False
+        has_pdf_content = bool(paper.pdf_content and paper.pdf_content.strip())
 
         if not has_abstract and not has_sections and not has_pdf_content:
             raise InsufficientContentError(f"Paper {paper_id} has no abstract, sections, or parsed content")

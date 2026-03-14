@@ -12,7 +12,7 @@ describe("UploadProgress", () => {
 
   it("shows processing state", () => {
     render(<UploadProgress status="processing" fileName="paper.pdf" />);
-    expect(screen.getByText(/processing/i)).toBeInTheDocument();
+    expect(screen.getByText(/generating ai summary/i)).toBeInTheDocument();
   });
 
   it("shows complete state", () => {

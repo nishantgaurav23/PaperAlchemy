@@ -12,7 +12,8 @@ from langchain_core.messages import AIMessage, HumanMessage
 from src.services.agents.context import AgentContext
 from src.services.agents.models import SourceItem
 from src.services.agents.nodes.generate_answer_node import (
-    GENERATION_PROMPT,
+    GENERATION_PROMPT_KB,
+    GENERATION_PROMPT_WEB,
     NO_SOURCES_MESSAGE,
     ainvoke_generate_answer_step,
     build_generation_prompt,
@@ -108,9 +109,11 @@ class TestBuildGenerationPrompt:
         assert "[" in prompt and "]" in prompt
 
     def test_prompt_uses_generation_template(self):
-        """GENERATION_PROMPT constant should be a non-empty string."""
-        assert isinstance(GENERATION_PROMPT, str)
-        assert len(GENERATION_PROMPT) > 50
+        """GENERATION_PROMPT_KB and GENERATION_PROMPT_WEB constants should be non-empty strings."""
+        assert isinstance(GENERATION_PROMPT_KB, str)
+        assert len(GENERATION_PROMPT_KB) > 50
+        assert isinstance(GENERATION_PROMPT_WEB, str)
+        assert len(GENERATION_PROMPT_WEB) > 50
 
 
 class TestSourceItemsToReferences:
@@ -166,9 +169,9 @@ class TestGenerateAnswerWithSources:
         assert len(messages) == 1
         ai_msg = messages[0]
         assert isinstance(ai_msg, AIMessage)
-        # Answer should contain the text and sources section
+        # Answer should contain the text (sources are NOT appended — frontend renders SourceCards)
         assert "Transformers" in ai_msg.content
-        assert "**Sources:**" in ai_msg.content
+        assert "**Sources:**" not in ai_msg.content
 
     async def test_citation_metadata_stored(self):
         sources = [_make_source()]

@@ -21,6 +21,9 @@ class PaperCreate(BaseModel):
     pdf_url: str
     pdf_content: str | None = None
     sections: list[dict] | None = None
+    summary: dict | None = None
+    highlights: dict | None = None
+    methodology: dict | None = None
     parsing_status: str = "pending"
     parsing_error: str | None = None
 
@@ -37,6 +40,9 @@ class PaperUpdate(BaseModel):
     pdf_url: str | None = None
     pdf_content: str | None = None
     sections: list[dict] | None = None
+    summary: dict | None = None
+    highlights: dict | None = None
+    methodology: dict | None = None
     parsing_status: str | None = None
     parsing_error: str | None = None
 
@@ -57,6 +63,9 @@ class PaperResponse(BaseModel):
     pdf_url: str
     pdf_content: str | None = None
     sections: list[dict] | None = None
+    summary: dict | None = None
+    highlights: dict | None = None
+    methodology: dict | None = None
     parsing_status: str
     parsing_error: str | None = None
     created_at: datetime | None = None

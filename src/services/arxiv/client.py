@@ -56,12 +56,12 @@ class ArxivClient:
     async def _wait_for_rate_limit(self) -> None:
         """Wait if needed to respect the minimum delay between requests."""
         if self._last_request_time is not None:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             elapsed = loop.time() - self._last_request_time
             if elapsed < self.rate_limit_delay:
                 await asyncio.sleep(self.rate_limit_delay - elapsed)
 
-        self._last_request_time = asyncio.get_event_loop().time()
+        self._last_request_time = asyncio.get_running_loop().time()
 
     # ------------------------------------------------------------------
     # HTTP with retry
@@ -117,23 +117,50 @@ class ArxivClient:
         from_date: str | None = None,
         to_date: str | None = None,
         search_query: str | None = None,
+        *,
+        skip_default_category: bool = False,
     ) -> str:
-        """Build arXiv API search query string."""
+        """Build arXiv API search query string.
+
+        Args:
+            category: arXiv category filter (e.g. "cs.AI"). Pass empty string to skip.
+            from_date: Start date filter (YYYYMMDD).
+            to_date: End date filter (YYYYMMDD).
+            search_query: Free-text search query.
+            skip_default_category: If True, don't fall back to self.search_category
+                when category is None. Used for web search where the user wants
+                to search across ALL categories.
+        """
         parts: list[str] = []
 
-        cat = category or self.search_category
+        cat = category if skip_default_category else (category or self.search_category)
         if cat:
-            parts.append(f"cat:{cat}")
+            # Support comma-separated categories: "cs.AI,cs.LG" → "(cat:cs.AI OR cat:cs.LG)"
+            cats = [c.strip() for c in cat.split(",") if c.strip()]
+            if len(cats) == 1:
+                parts.append(f"cat:{cats[0]}")
+            elif cats:
+                cat_query = " OR ".join(f"cat:{c}" for c in cats)
+                parts.append(f"({cat_query})")
 
         if from_date and to_date:
-            parts.append(f"submittedDate:[{from_date} TO {to_date}]")
+            # arXiv API requires YYYYMMDDHHMM format for submittedDate
+            fd = from_date.ljust(12, "0")[:12]
+            td = to_date[:8].ljust(12, "0")[:8] + "2359"
+            parts.append(f"submittedDate:[{fd} TO {td}]")
         elif from_date:
-            parts.append(f"submittedDate:[{from_date} TO 99991231]")
+            fd = from_date.ljust(12, "0")[:12]
+            parts.append(f"submittedDate:[{fd} TO 999912312359]")
         elif to_date:
-            parts.append(f"submittedDate:[00000101 TO {to_date}]")
+            td = to_date[:8].ljust(12, "0")[:8] + "2359"
+            parts.append(f"submittedDate:[000001010000 TO {td}]")
 
         if search_query:
-            parts.append(f"all:{search_query}")
+            # Phrase-match on title and abstract for best relevance.
+            # ti: boosts exact title matches (e.g. "attention is all you need"),
+            # abs: catches topic searches where keywords appear in abstract.
+            escaped = search_query.replace('"', '\\"')
+            parts.append(f'(ti:"{escaped}" OR abs:"{escaped}")')
 
         return " AND ".join(parts) if parts else "cat:cs.AI"
 
@@ -179,6 +206,8 @@ class ArxivClient:
         sort_by: str = "submittedDate",
         sort_order: str = "descending",
         start: int = 0,
+        *,
+        skip_default_category: bool = False,
     ) -> list[ArxivPaper]:
         """Fetch papers from the arXiv API.
 
@@ -186,7 +215,13 @@ class ArxivClient:
             List of parsed ArxivPaper objects.
         """
         max_results = max_results or self.max_results
-        query = self._build_query(category=category, from_date=from_date, to_date=to_date, search_query=search_query)
+        query = self._build_query(
+            category=category,
+            from_date=from_date,
+            to_date=to_date,
+            search_query=search_query,
+            skip_default_category=skip_default_category,
+        )
 
         params = {
             "search_query": query,
@@ -247,7 +282,7 @@ class ArxivClient:
         await self._wait_for_rate_limit()
 
         try:
-            async with httpx.AsyncClient(timeout=60) as http:
+            async with httpx.AsyncClient(timeout=60, follow_redirects=True) as http:
                 response = await http.get(pdf_url, headers={"User-Agent": self.user_agent})
 
             if response.status_code != 200:

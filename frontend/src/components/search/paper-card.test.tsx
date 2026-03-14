@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "vitest";
 import { PaperCard } from "./paper-card";
 import type { Paper } from "@/types/paper";
@@ -117,5 +118,55 @@ describe("PaperCard", () => {
     render(<PaperCard paper={paperMissingFields} />);
     // Should not crash, no badges shown
     expect(screen.queryByText("cs.CL")).not.toBeInTheDocument();
+  });
+
+  // --- New S13.4 tests ---
+
+  it("renders colored category chips with distinct colors", () => {
+    render(<PaperCard paper={mockPaper} />);
+    const chips = screen.getAllByTestId("category-chip");
+    expect(chips).toHaveLength(2);
+    // cs.CL should have violet color classes
+    expect(chips[0].className).toContain("violet");
+    // cs.AI should have indigo color classes
+    expect(chips[1].className).toContain("indigo");
+  });
+
+  it("renders bookmark button", () => {
+    render(<PaperCard paper={mockPaper} />);
+    expect(screen.getByTestId("bookmark-button")).toBeInTheDocument();
+  });
+
+  it("toggles bookmark on click", async () => {
+    const user = userEvent.setup();
+    render(<PaperCard paper={mockPaper} />);
+    const bookmarkBtn = screen.getByTestId("bookmark-button");
+
+    expect(screen.getByLabelText("Bookmark paper")).toBeInTheDocument();
+    await user.click(bookmarkBtn);
+    expect(screen.getByLabelText("Remove bookmark")).toBeInTheDocument();
+    await user.click(bookmarkBtn);
+    expect(screen.getByLabelText("Bookmark paper")).toBeInTheDocument();
+  });
+
+  it("shows full abstract on hover", async () => {
+    const user = userEvent.setup();
+    render(<PaperCard paper={paperLongAbstract} />);
+    const article = screen.getByRole("article");
+    const abstractEl = screen.getByTestId("paper-abstract");
+
+    // Before hover: truncated
+    expect(abstractEl.textContent).toContain("...");
+
+    // Hover: full abstract
+    await user.hover(article);
+    expect(abstractEl.textContent).not.toContain("...");
+    expect(abstractEl.textContent).toBe("A".repeat(300));
+  });
+
+  it("applies staggered animation delay style", () => {
+    render(<PaperCard paper={mockPaper} animationDelay={150} />);
+    const article = screen.getByRole("article");
+    expect(article.style.animationDelay).toBe("150ms");
   });
 });

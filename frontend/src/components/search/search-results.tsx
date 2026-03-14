@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, AlertCircle, FileSearch } from "lucide-react";
+import { Search, AlertCircle, FileSearch, Sparkles } from "lucide-react";
 import { PaperCard } from "./paper-card";
 import { Pagination } from "./pagination";
 import type { Paper } from "@/types/paper";
@@ -14,45 +14,93 @@ interface SearchResultsProps {
   isLoading: boolean;
   error: string | null;
   hasSearched?: boolean;
+  searchQuery?: string;
   onPageChange: (page: number) => void;
   onRetry?: () => void;
+  onSuggestionClick?: (query: string) => void;
+}
+
+const SEARCH_SUGGESTIONS = [
+  "transformer architecture",
+  "reinforcement learning",
+  "large language models",
+  "computer vision",
+  "graph neural networks",
+];
+
+function ShimmerSkeleton() {
+  return (
+    <div
+      data-testid="paper-skeleton"
+      className="glass-card overflow-hidden p-4"
+    >
+      <div className="flex flex-col gap-3">
+        <div className="shimmer h-5 w-3/4 rounded" />
+        <div className="shimmer h-4 w-1/3 rounded" />
+        <div className="shimmer h-4 w-full rounded" />
+        <div className="shimmer h-4 w-2/3 rounded" />
+        <div className="flex gap-2">
+          <div className="shimmer h-5 w-16 rounded-full" />
+          <div className="shimmer h-5 w-12 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function LoadingSkeletons() {
   return (
     <div className="flex flex-col gap-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div
-          key={i}
-          data-testid="paper-skeleton"
-          className="animate-pulse rounded-lg border border-border bg-card p-4"
-        >
-          <div className="flex flex-col gap-3">
-            <div className="h-5 w-3/4 rounded bg-muted" />
-            <div className="h-4 w-1/3 rounded bg-muted" />
-            <div className="h-4 w-full rounded bg-muted" />
-            <div className="h-4 w-2/3 rounded bg-muted" />
-            <div className="flex gap-2">
-              <div className="h-5 w-16 rounded-full bg-muted" />
-              <div className="h-5 w-12 rounded-full bg-muted" />
-            </div>
-          </div>
-        </div>
+        <ShimmerSkeleton key={i} />
       ))}
     </div>
   );
 }
 
-function EmptyState() {
+function EmptyState({
+  searchQuery,
+  onSuggestionClick,
+}: {
+  searchQuery?: string;
+  onSuggestionClick?: (query: string) => void;
+}) {
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-      <FileSearch className="size-12 text-muted-foreground" />
-      <div className="flex flex-col gap-1">
+    <div className="flex flex-col items-center justify-center gap-6 py-16 text-center">
+      <div className="relative">
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 blur-xl" />
+        <div className="relative flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-primary/10 to-accent/10">
+          <FileSearch className="size-10 text-muted-foreground" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
         <h3 className="text-lg font-semibold">No papers found</h3>
-        <p className="text-sm text-muted-foreground">
-          Try adjusting your search query or filters.
+        <p className="max-w-sm text-sm text-muted-foreground">
+          {searchQuery
+            ? `No results for "${searchQuery.length > 50 ? searchQuery.slice(0, 50) + "..." : searchQuery}". Try a different query or broader terms.`
+            : "Try adjusting your search query or filters."}
         </p>
       </div>
+      {onSuggestionClick && (
+        <div className="flex flex-col items-center gap-2">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Sparkles className="size-3" />
+            Try searching for:
+          </span>
+          <div className="flex flex-wrap justify-center gap-2">
+            {SEARCH_SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => onSuggestionClick(suggestion)}
+                className="rounded-full border border-border bg-card px-3 py-1 text-xs text-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -60,7 +108,12 @@ function EmptyState() {
 function InitialState() {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-      <Search className="size-12 text-muted-foreground" />
+      <div className="relative">
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 blur-xl" />
+        <div className="relative flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-primary/10 to-accent/10">
+          <Search className="size-10 text-muted-foreground" />
+        </div>
+      </div>
       <div className="flex flex-col gap-1">
         <h3 className="text-lg font-semibold">Search for papers</h3>
         <p className="text-sm text-muted-foreground">
@@ -102,19 +155,31 @@ export function SearchResults({
   isLoading,
   error,
   hasSearched = false,
+  searchQuery,
   onPageChange,
   onRetry,
+  onSuggestionClick,
 }: SearchResultsProps) {
   if (isLoading) return <LoadingSkeletons />;
   if (error) return <ErrorState onRetry={onRetry} />;
   if (!hasSearched) return <InitialState />;
-  if (papers.length === 0) return <EmptyState />;
+  if (papers.length === 0)
+    return (
+      <EmptyState
+        searchQuery={searchQuery}
+        onSuggestionClick={onSuggestionClick}
+      />
+    );
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
-        {papers.map((paper) => (
-          <PaperCard key={paper.id} paper={paper} />
+        {papers.map((paper, index) => (
+          <PaperCard
+            key={paper.id}
+            paper={paper}
+            animationDelay={Math.min(index, 10) * 50}
+          />
         ))}
       </div>
 
